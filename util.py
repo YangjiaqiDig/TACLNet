@@ -15,3 +15,4 @@ def get_dataset(args):
     else:
         logger.info("Start Prepare enhanced dataset before DataLoader %s", train_path)
         train = DataTrain(train_path, label_path)
+        torch.save(train, args.dataset_cache)

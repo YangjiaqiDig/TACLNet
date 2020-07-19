@@ -12,11 +12,12 @@ logger = logging.getLogger(__file__)
 
 def train_UNET():
     parser = ArgumentParser()
-    parser.add_argument("--dataset_path", type=str, default="train_ISBI13",
+    parser.add_argument("--dataset_path_train", type=str, default="train_ISBI13/train-volume.tif",
                         help="Path or url of the dataset")
-
+    parser.add_argument("--dataset_path_label", type=str, default="train_ISBI13/train-labels_thin.tif",
+                        help="Path or url of the dataset")
     parser.add_argument("--dataset_cache", type=str,
-                        default='./dataset_cache', help="Path or url of the preprocessed dataset cache")
+                        default='dataset_cache_ISBI13', help="Path or url of the preprocessed dataset cache")
     parser.add_argument("--train_batch_size", type=int,
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,

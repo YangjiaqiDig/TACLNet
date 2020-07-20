@@ -33,5 +33,6 @@ def train_UNET():
 
     logger.info("---------Prepare DataSet--------")
     train_loader, val_loader = get_dataset(args)
+
 if __name__ == "__main__":
     train_UNET()

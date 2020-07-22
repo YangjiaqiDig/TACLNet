@@ -4,6 +4,7 @@ from pre_processing import *
 from random import randint
 from PIL import Image, ImageSequence
 
+
 def imageTransform(img_as_np, msk_as_np):
     # Noise Determine {0: Gaussian_noise, 1: uniform_noise
     if randint(0, 1):
@@ -21,6 +22,7 @@ def imageTransform(img_as_np, msk_as_np):
     msk_as_np = msk_as_np / 255
 
     return img_as_np, msk_as_np
+
 
 def DataTrain(train_path, label_path):
     image_arr = Image.open(str(train_path))
@@ -46,5 +48,17 @@ def DataTrain(train_path, label_path):
     img_as_tensor = torch.from_numpy(img_as_np).float()
     msk_as_tensor = torch.from_numpy(msk_as_np).long()
 
-
     return (img_as_tensor, msk_as_tensor)
+
+
+class DataLoaderForUnet(Dataset):
+    def __init__(self, dataset):
+        self.image = dataset[0]
+        self.mask = dataset[1]
+        self.data_len = len(self.image)
+
+    def __getitem__(self, index):
+        return (self.image[index], self.mask[index])
+
+    def __len__(self):
+        return self.data_len

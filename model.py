@@ -108,16 +108,16 @@ class UNET(nn.Module):
         likelihood_map = self.softmax(x)
         # print(likelihood_map)
 
-        return x, likelihood_map
+        return likelihood_map
 
 
 if __name__ == "__main__":
     # A full forward pass
     im = torch.randn(2, 1, 256, 256)
     model = UNET()
-    x, likelihood_map = model(im)
+    likelihood_map = model(im)
     # print(x, likelihood_map)
     # print(x.shape)
     del model
-    del x
+    del likelihood_map
     # print(x.shape)

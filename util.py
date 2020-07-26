@@ -67,7 +67,7 @@ def save_prediction(likelihood_map, pred_class, args, batch, epoch):
     img_as_np, pred_as_np = img_as_np.astype(np.uint8), pred_as_np.astype(np.uint8)
     # print(img_as_np, img_as_np.shape)
     img, pred = Image.fromarray(img_as_np.squeeze(0)), Image.fromarray(pred_as_np.squeeze(0))
-    path = args.save_folder + '/valid_' + str(args.valid_round) + '/epoch_' + str(epoch) + '/'
+    path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images' + '/epoch_' + str(epoch) + '/'
     if not os.path.exists(path):
         os.makedirs(path)
     # SAVE Valid Likelihood Images and Prediction
@@ -86,7 +86,7 @@ def save_groundTrue(images, labels, args, batch, epoch):
     # print(img_as_np, img_as_np.shape)
 
     img, label = Image.fromarray(img_as_np.squeeze(0)), Image.fromarray(label_as_np.squeeze(0))
-    path = args.save_folder + '/valid_' + str(args.valid_round) + '/epoch_' + str(epoch) + '/'
+    path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images' + '/epoch_' + str(epoch) + '/'
     if not os.path.exists(path):
         os.makedirs(path)
     # SAVE Valid ground true Images

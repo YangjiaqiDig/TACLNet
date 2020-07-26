@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from dataset import *
 from model import UNET
+from save_history import *
 from util import *
 
 logger = logging.getLogger(__file__)
@@ -63,7 +64,12 @@ def train_UNET(args, train_loader, val_loader):
             valid_acc_epoch, valid_loss_epoch = total_val_acc / (batch + 1), total_val_loss / (batch + 1),
             print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch)
 
+            header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
             save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
+            export_history(header, save_values, args)
+
+        if (i + 1) % 10 == 0:
+            save_models(i + 1, model, optimizer, args)
 
 
 def train():

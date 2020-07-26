@@ -72,6 +72,9 @@ def train_UNET(args, train_loader, val_loader):
             save_models(i + 1, model, optimizer, args)
 
 
+def train_LSTM(args):
+
+
 def train():
     parser = ArgumentParser()
     parser.add_argument("--dataset_path_train", type=str, default="train_ISBI13/train-volume.tif",
@@ -105,6 +108,9 @@ def train():
                                              shuffle=False)
 
     train_UNET(args, train_loader, val_loader)
+
+    lstmTrainDataset, lstmValidDataset = get_dataset_lstm(args)
+    train_LSTM(args)
 
 
 if __name__ == "__main__":

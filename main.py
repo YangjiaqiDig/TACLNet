@@ -43,11 +43,27 @@ def train_UNET(args, train_loader, val_loader):
                 total_acc += acc
                 total_loss += loss.cpu().item()
         train_acc_epoch, train_loss_epoch = total_acc / (batch + 1), total_loss / (batch + 1)
-        print('Epoch', str(i + 1), 'Train loss:', train_acc_epoch, "Train acc", train_loss_epoch)
+        print('Epoch', str(i + 1), 'Train loss:', train_loss_epoch, "Train acc", train_acc_epoch)
 
         """Validation for every 5 epochs"""
         if (i + 1) % 5 == 0:
-            print('Val loss:', val_loss, "val acc:", val_acc)
+            total_val_loss = 0
+            total_val_acc = 0
+            for batch, data in enumerate(val_loader):
+                images, labels = data[0], data[1]
+                with torch.no_grad():
+                    likelihood_map = model(images.to(args.device))
+                    pred_class = likelihood_map > 0.5
+                    loss = loss_fun(likelihood_map, labels.to(args.device))
+                    save_prediction(likelihood_map, pred_class, args, batch, i)
+                    save_groundTrue(images, labels, args, batch, i)
+                    total_val_loss += loss.cpu().item()
+                    acc_val = accuracy_check(labels.cpu(), pred_class.cpu())
+                    total_val_acc += acc_val
+            valid_acc_epoch, valid_loss_epoch = total_val_acc / (batch + 1), total_val_loss / (batch + 1),
+            print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch)
+
+            save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
 
 
 def train():
@@ -58,6 +74,8 @@ def train():
                         help="Path or url of the dataset")
     parser.add_argument("--dataset_cache", type=str,
                         default='dataset_cache_ISBI13', help="Path or url of the preprocessed dataset cache")
+    parser.add_argument("--save_folder", type=str, default="results_unet/ISBI13",
+                        help="Path or url of the dataset")
     parser.add_argument("--train_batch_size", type=int,
                         default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,

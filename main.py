@@ -95,6 +95,8 @@ def train():
                         default=6.25e-4, help="Learning rate")
     parser.add_argument("--n_epochs", type=int, default=100,
                         help="Number of training epochs")
+    parser.add_argument("--check_point", type=str, default="/model_epoch_100.pwf",
+                        help="Path of the pre-trained CNN")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available()
     else "cpu", help="Device (cuda or cpu)")
 

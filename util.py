@@ -5,11 +5,11 @@ import numpy as np
 import torch
 from PIL import Image
 from dataset import *
+from model import UNET
 
 logger = logging.getLogger(__file__)
 
-
-def get_dataset(args):
+def load_preprocess_dataset(args):
     train_path = args.dataset_path_train
     label_path = args.dataset_path_label
     if args.dataset_cache and os.path.isfile(args.dataset_cache):
@@ -20,6 +20,20 @@ def get_dataset(args):
         logger.info("Start Prepare enhanced dataset before DataLoader %s", train_path)
         train = DataTrain(train_path, label_path)
         torch.save(train, args.dataset_cache)
+
+    return train
+
+def get_dataset_lstm(args):
+    originalData = load_preprocess_dataset(args)
+    model = UNET()
+    path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models' + args.check_point
+    model.load_state_dict(torch.load(path))
+    model.eval()
+    # TODO: batch to saved model get likelihood map (3 slices) with train & valid separate
+
+
+def get_dataset(args):
+    train = load_preprocess_dataset(args)
     validSep_beg = int(len(train[0]) / 5 * (args.valid_round - 1))
     validSep_end = int(len(train[0]) / 5 * args.valid_round)
 

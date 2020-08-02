@@ -77,6 +77,8 @@ def train_LSTM(args):
 
 def train():
     parser = ArgumentParser()
+    parser.add_argument("--train_type", type=str, default="unet",
+                        help="unet or clstm")
     parser.add_argument("--dataset_path_train", type=str, default="train_ISBI13/train-volume.tif",
                         help="Path or url of the dataset")
     parser.add_argument("--dataset_path_label", type=str, default="train_ISBI13/train-labels_thin.tif",
@@ -111,8 +113,9 @@ def train():
 
     train_UNET(args, train_loader, val_loader)
 
-    lstmTrainDataset, lstmValidDataset = get_dataset_lstm(args)
-    train_LSTM(args)
+    if args.train_type == 'clstm':
+        lstmTrainDataset, lstmValidDataset = get_dataset_lstm(args)
+        train_LSTM(args)
 
 
 if __name__ == "__main__":

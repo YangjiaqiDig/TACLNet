@@ -9,6 +9,7 @@ from model import UNET
 
 logger = logging.getLogger(__file__)
 
+
 def load_preprocess_dataset(args):
     train_path = args.dataset_path_train
     label_path = args.dataset_path_label
@@ -23,14 +24,27 @@ def load_preprocess_dataset(args):
 
     return train
 
+
 def get_dataset_lstm(args):
     originalData = load_preprocess_dataset(args)
+    originalDataSet = DataLoaderForUnet(originalData)
+    origin_loader = torch.utils.data.DataLoader(dataset=originalDataSet, num_workers=6,
+                                                batch_size=args.train_batch_size,
+                                                shuffle=False)
     model = UNET()
     path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models' + args.check_point
     model.load_state_dict(torch.load(path))
     model.eval()
-    # TODO: batch to saved model get likelihood map (3 slices) with train & valid separate
-
+    likelihood_map_all = []
+    for batch, data in enumerate(origin_loader):
+        images, labels = data[0], data[1]
+        with torch.no_grad():
+            likelihood_map = model(images.to(args.device))  # (batch, 1, size, size)
+            likelihood_map_all.append(origin_loader)
+    likelihood_map_all = torch.cat(likelihood_map_all, dim=0)  # (n, 1, size, size)
+    likelihood_map_all = likelihood_map_all.squeeze(dim=1)  # (n, size, size)
+    # TODO: save and load this dataset likelihood for certain round of epoch trained model.
+    train = convert_topo(likelihood_map_all, originalData[1])
 
 def get_dataset(args):
     train = load_preprocess_dataset(args)
@@ -108,3 +122,13 @@ def save_groundTrue(images, labels, args, batch, epoch):
     export_name_gt = str(batch) + 'gt.png'
     img.save(path + export_name_orig)
     label.save(path + export_name_gt)
+
+
+if __name__ == "__main__":
+    x = torch.tensor([[[1, 2]], [[3, 4]], [[3, 4]]])
+    y = torch.tensor([[[1, 2]], [[3, 4]], [[3, 4]]])
+    z = [x, y]
+    print(x.shape, y.shape)
+    q = torch.cat(z, dim=0)
+    print(q.shape)
+    print(q.squeeze(dim=1).shape)

@@ -3,7 +3,7 @@ import numpy as np
 from pre_processing import *
 from random import randint
 from PIL import Image, ImageSequence
-
+from torch.utils.data.dataset import Dataset
 
 def imageTransform(img_as_np, msk_as_np):
     # Noise Determine {0: Gaussian_noise, 1: uniform_noise

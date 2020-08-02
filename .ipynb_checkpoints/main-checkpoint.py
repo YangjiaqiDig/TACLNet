@@ -73,7 +73,7 @@ def train_UNET(args, train_loader, val_loader):
 
 
 def train_LSTM(args):
-    return
+
 
 def train():
     parser = ArgumentParser()
@@ -104,15 +104,14 @@ def train():
 
     args = parser.parse_args()
 
-    if args.train_type == 'unet':
-        logger.info("---------Prepare DataSet for UNET--------")
-        trainDataset, validDataset = get_dataset(args)
-        train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=6, batch_size=args.train_batch_size,
-                                                   shuffle=True)
-        val_loader = torch.utils.data.DataLoader(dataset=validDataset, num_workers=6, batch_size=args.valid_batch_size,
-                                                 shuffle=False)
+    logger.info("---------Prepare DataSet--------")
+    trainDataset, validDataset = get_dataset(args)
+    train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=6, batch_size=args.train_batch_size,
+                                               shuffle=True)
+    val_loader = torch.utils.data.DataLoader(dataset=validDataset, num_workers=6, batch_size=args.valid_batch_size,
+                                             shuffle=False)
 
-        train_UNET(args, train_loader, val_loader)
+    train_UNET(args, train_loader, val_loader)
 
     if args.train_type == 'clstm':
         lstmTrainDataset, lstmValidDataset = get_dataset_lstm(args)

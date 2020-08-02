@@ -1,11 +1,8 @@
 import logging
-import os
 
-import numpy as np
-import torch
-from PIL import Image
 from dataset import *
 from model import UNET
+from topo import *
 
 logger = logging.getLogger(__file__)
 
@@ -40,11 +37,12 @@ def get_dataset_lstm(args):
         images, labels = data[0], data[1]
         with torch.no_grad():
             likelihood_map = model(images.to(args.device))  # (batch, 1, size, size)
-            likelihood_map_all.append(origin_loader)
+            likelihood_map_all.append(likelihood_map)
     likelihood_map_all = torch.cat(likelihood_map_all, dim=0)  # (n, 1, size, size)
     likelihood_map_all = likelihood_map_all.squeeze(dim=1)  # (n, size, size)
     # TODO: save and load this dataset likelihood for certain round of epoch trained model.
     train = convert_topo(likelihood_map_all, originalData[1])
+
 
 def get_dataset(args):
     train = load_preprocess_dataset(args)

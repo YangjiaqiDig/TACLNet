@@ -2,8 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import sys
-sys.path.insert(1, 'TopologyForceV1/Code/TDFPython')
-from PersistencePython import cubePers
+from TopologyForceV1.Code.TDFPython.PersistencePython import cubePers
 
 
 def compute_persistence_2DImg_1DHom_lh(f):

@@ -84,47 +84,6 @@ def getPers(likelihoods, groundtruth):
     return pd_lh_all, bcp_lh_all, dcp_lh_all, pd_gt_all, bcp_gt_all, dcp_gt_all, lh_pers_all, lh_pers_valid_all, gt_pers_all, gt_pers_valid_all
 
 
-def get_critical_points(likelihood, label):
-    topo_size = 65
-    gt_dmap = label.to(device)
-    et_dmap = likelihood
-    n_fix = 0
-    n_remove = 0
-    topo_cp_weight_map = np.zeros(et_dmap.shape)
-    topo_cp_ref_map = np.zeros(et_dmap.shape)
-    allWindows = 1
-    inWindows = 1
-
-    for y in range(0, gt_dmap.shape[0], topo_size):
-        for x in range(0, gt_dmap.shape[1], topo_size):
-            likelihoodAll = []
-            allWindows = allWindows + 1
-            likelihood = et_dmap[y:min(y + topo_size, gt_dmap.shape[0]),
-                         x:min(x + topo_size, gt_dmap.shape[1])]
-            groundtruth = gt_dmap[y:min(y + topo_size, gt_dmap.shape[0]),
-                          x:min(x + topo_size, gt_dmap.shape[1])]
-            for likelihoodMap in likelihood:
-                likelihoodAll.append(likelihoodMap[y:min(y + topo_size, gt_dmap.shape[0]),
-                         x:min(x + topo_size, gt_dmap.shape[1])])
-
-            # print('likelihood', likelihood.shape, 'groundtruth', groundtruth.shape, 'binaryPredict', binary.shape)
-            predict_betti_number = betti_number(binary)
-            groundtruth_betti_number = betti_number(groundtruth)
-            # print(predict_betti_number, groundtruth_betti_number)
-
-            if(torch.min(likelihood) == 1 or torch.max(likelihood) == 0): continue
-            if (torch.min(groundtruth) == 1 or torch.max(groundtruth) == 0): continue
-            if groundtruth_betti_number == 0: continue
-            if all( torch.min(lkhd) == 1 for lkhd in likelihoodAll): continue
-            if(abs(predict_betti_number - groundtruth_betti_number) / groundtruth_betti_number) < 0.4:
-                continue
-            if (len(likelihood.shape) < 2 or len(groundtruth.shape) < 2):
-                continue
-            print('row: ', y, 'col: ', x)
-            inWindows = inWindows + 1
-
-            pd_lh, bcp_lh, dcp_lh, pd_gt, bcp_gt, dcp_gt, lh_pers, lh_pers_valid, gt_pers, gt_pers_valid = getPers(likelihoodAll, groundtruth)
-
 
 def getTopoLoss(likelihoodMaps, binaryPredict, masks, device, likelihoodMap_final):
     topo_size = 65

@@ -1,21 +1,22 @@
 import logging
-
+import os
 from dataset import *
 from model import UNET
 from topo import *
 
-logger = logging.getLogger(__file__)
+# logger = logging.getLogger(__file__)
+logging.basicConfig(level=logging.DEBUG)
 
 
 def load_preprocess_dataset(args):
     train_path = args.dataset_path_train
     label_path = args.dataset_path_label
     if args.dataset_cache and os.path.isfile(args.dataset_cache):
-        logger.info("Load enhanced dataset before DataLoader from cache at %s", args.dataset_cache)
+        logging.info("Load enhanced dataset before DataLoader from cache at %s", args.dataset_cache)
         train = torch.load(args.dataset_cache)
 
     else:
-        logger.info("Start Prepare enhanced dataset before DataLoader %s", train_path)
+        logging.info("Start Prepare enhanced dataset before DataLoader %s", train_path)
         train = DataTrain(train_path, label_path)
         torch.save(train, args.dataset_cache)
 
@@ -29,20 +30,31 @@ def get_dataset_lstm(args):
                                                 batch_size=args.train_batch_size,
                                                 shuffle=False)
     model = UNET()
+    if args.device == "cuda":
+        model = torch.nn.DataParallel(model, device_ids=list(
+            range(torch.cuda.device_count()))).cuda()
     path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models' + args.check_point
-    model.load_state_dict(torch.load(path))
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint['state_dict'])
     model.eval()
     likelihood_map_all = []
+    predict_all = []
     for batch, data in enumerate(origin_loader):
-        images, labels = data[0], data[1]
+        images, labels = data[0].unsqueeze(1), data[1]
         with torch.no_grad():
-            likelihood_map = model(images.to(args.device))  # (batch, 1, size, size)
-            likelihood_map_all.append(likelihood_map)
-    likelihood_map_all = torch.cat(likelihood_map_all, dim=0)  # (n, 1, size, size)
-    likelihood_map_all = likelihood_map_all.squeeze(dim=1)  # (n, size, size)
+            output, likelihoodMap = model(images.to(args.device))  # (batch, 1, size, size)
+            predict = likelihoodMap >= 0.5
+            likelihood_map_all.append(likelihoodMap)
+            predict_all.append(predict)
+    likelihood_map_all = torch.cat(likelihood_map_all, dim=0)  # (n, size, size)
+    predict_all = torch.cat(predict_all, dim=0)
+    # print(likelihood_map_all[0], originalData[1].shape, originalData[1][0])
     # TODO: save and load this dataset likelihood for certain round of epoch trained model.
-    train = convert_topo(likelihood_map_all, originalData[1])
+    train = convert_topo(likelihood_map_all, originalData[1], predict_all, args)
 
+    trainDataSet = DataLoaderForUnet(train)
+    logging.info("DataSet for CLSTM shape %s", train[0].shape)
+    return trainDataSet
 
 def get_dataset(args):
     train = load_preprocess_dataset(args)
@@ -55,7 +67,7 @@ def get_dataset(args):
                  train[1][validSep_beg:validSep_end])
     trainDataSet = DataLoaderForUnet(trainData)
     validDataSet = DataLoaderForUnet(validData)
-    logger.info("trainDataSet size %s", len(trainData))
+    logging.info("TrainDataSet shape %s", trainData[0].shape)
 
     return (trainDataSet, validDataSet)
 
@@ -97,7 +109,7 @@ def save_prediction(likelihood_map, pred_class, args, batch, epoch):
     if not os.path.exists(path):
         os.makedirs(path)
     # SAVE Valid Likelihood Images and Prediction
-    export_name_lh = str(batch) + 'lh.png',
+    export_name_lh = str(batch) + 'lh.png'
     export_name_pred = str(batch) + 'pred.png'
     img.save(path + export_name_lh)
     pred.save(path + export_name_pred)

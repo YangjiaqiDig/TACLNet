@@ -35,7 +35,7 @@ class UNET(nn.Module):
         self.up_4 = nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=2, stride=2)
         self.conv_up_4 = double_conv(64, 32)
 
-        self.conv_final = nn.Conv2d(in_channels=32, out_channels=1, kernel_size=1, padding=0, stride=1)
+        self.conv_final = nn.Conv2d(in_channels=32, out_channels=2, kernel_size=1, padding=0, stride=1)
         self.softmax = nn.Softmax2d()
         self.dropout = nn.Dropout(0.1)
 
@@ -105,10 +105,10 @@ class UNET(nn.Module):
         # Final output
         x = self.conv_final(x)
         # print('final: ', x)
-        likelihood_map = self.softmax(x)
+        likelihood_map = self.softmax(x)[:,1,:,:]
         # print(likelihood_map)
 
-        return likelihood_map
+        return x, likelihood_map
 
 
 if __name__ == "__main__":

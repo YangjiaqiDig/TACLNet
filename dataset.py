@@ -18,9 +18,6 @@ def imageTransform(img_as_np, msk_as_np):
     pix_add = randint(-20, 20)
     img_as_np = change_brightness(img_as_np, pix_add)
 
-    img_as_np, = normalization2(img_as_np.astype(float), max=1, min=0)
-    msk_as_np = msk_as_np / 255
-
     return img_as_np, msk_as_np
 
 
@@ -40,10 +37,12 @@ def DataTrain(train_path, label_path):
 
     img_as_np, msk_as_np = np.stack(img_as_np, axis=0), np.stack(msk_as_np, axis=0)
 
-    img_as_np, msk_as_np = imageTransform(img_as_np, msk_as_np)
+    # img_as_np, msk_as_np = imageTransform(img_as_np, msk_as_np)
 
     # img2 = Image.fromarray(msk_as_np)
     # img2.show()
+    img_as_np = normalization2(img_as_np.astype(float), max=1, min=0)
+    msk_as_np = msk_as_np / 255
 
     img_as_tensor = torch.from_numpy(img_as_np).float()
     msk_as_tensor = torch.from_numpy(msk_as_np).long()

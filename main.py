@@ -1,31 +1,39 @@
-import logging
 from argparse import ArgumentParser
 
-import torch
-import torch.nn as nn
-from dataset import *
-from model import UNET
 from save_history import *
 from util import *
+import torch
+import torch.nn as nn
+from model import UNET
+from lstm import *
 
-logger = logging.getLogger(__file__)
+os.environ['CUDA_VISIBLE_DEVICES'] = '4, 5'
 
+# logger = logging.getLogger(__file__).setLevel(logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 def train_UNET(args, train_loader, val_loader):
-    logger.info("---------Using device %s--------", args.device)
+    logging.info("---------Using device %s--------", args.device)
 
     model = UNET()
-    loss_fun = nn.MSELoss()
+    if args.device == "cuda":
+        print("GPU: ", torch.cuda.device_count())
+        model = torch.nn.DataParallel(model, device_ids=list(
+            range(torch.cuda.device_count()))).cuda()
+    # loss_fun = nn.MSELoss()
+    loss_fun = nn.CrossEntropyLoss()
     optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr)
 
-    logger.info("---------Initializing Training For UNET!--------")
+    logging.info("---------Initializing Training For UNET!--------")
     for i in range(0, args.n_epochs):
         """Train each epoch"""
         model.train()
         for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1]
-            likelihood_map = model(images.to(args.device))
-            loss = loss_fun(likelihood_map, labels.to(args.device))
+            images, labels = data[0].unsqueeze(1), data[1]
+            output, likelihoodMap = model(images.to(args.device))
+            # print(likelihoodMap)
+            loss = loss_fun(output, labels.to(args.device))
+            # print(loss)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -35,11 +43,11 @@ def train_UNET(args, train_loader, val_loader):
         total_acc = 0
         total_loss = 0
         for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1]
+            images, labels = data[0].unsqueeze(1), data[1]
             with torch.no_grad():
-                likelihood_map = model(images.to(args.device))
-                loss = loss_fun(likelihood_map, labels.to(args.device))
-                pred_class = likelihood_map > 0.5
+                output, likelihoodMap = model(images.to(args.device))
+                loss = loss_fun(output, labels.to(args.device))
+                pred_class = likelihoodMap >= 0.5
                 acc = accuracy_for_batch(labels.cpu(), pred_class.cpu(), args)
                 total_acc += acc
                 total_loss += loss.cpu().item()
@@ -51,13 +59,13 @@ def train_UNET(args, train_loader, val_loader):
             total_val_loss = 0
             total_val_acc = 0
             for batch, data in enumerate(val_loader):
-                images, labels = data[0], data[1]
+                images, labels = data[0].unsqueeze(1), data[1]
                 with torch.no_grad():
-                    likelihood_map = model(images.to(args.device))
-                    pred_class = likelihood_map > 0.5
-                    loss = loss_fun(likelihood_map, labels.to(args.device))
-                    save_prediction(likelihood_map, pred_class, args, batch, i)
-                    save_groundTrue(images, labels, args, batch, i)
+                    output, likelihoodMap = model(images.to(args.device))
+                    pred_class = likelihoodMap >= 0.5
+                    loss = loss_fun(output, labels.to(args.device))
+                    save_prediction(likelihoodMap, pred_class, args, batch, i+1)
+                    save_groundTrue(data[0], labels, args, batch, i+1)
                     total_val_loss += loss.cpu().item()
                     acc_val = accuracy_check(labels.cpu(), pred_class.cpu())
                     total_val_acc += acc_val
@@ -72,12 +80,23 @@ def train_UNET(args, train_loader, val_loader):
             save_models(i + 1, model, optimizer, args)
 
 
-def train_LSTM(args):
+def train_LSTM(lstmTrainDataset, args):
+    logging.info("Start Training CLSTM with TOPO input")
+    modelLSTM = ConvLSTM()
+    if args.device == "cuda":
+        print("GPU: ", torch.cuda.device_count())
+        modelLSTM = torch.nn.DataParallel(modelLSTM, device_ids=list(
+            range(torch.cuda.device_count()))).cuda()
+    # loss_fun = nn.MSELoss()
+    loss_fun = nn.CrossEntropyLoss()
+    optimizer = torch.optim.RMSprop(modelLSTM.parameters(), lr=args.lr)
+
     return
+
 
 def train():
     parser = ArgumentParser()
-    parser.add_argument("--train_type", type=str, default="unet",
+    parser.add_argument("--train_type", type=str, default="clstm",
                         help="unet or clstm")
     parser.add_argument("--dataset_path_train", type=str, default="train_ISBI13/train-volume.tif",
                         help="Path or url of the dataset")
@@ -94,20 +113,22 @@ def train():
     parser.add_argument("--valid_round", type=int,
                         default=5, help="validation part: 1, 2, 3, 4, 5")
     parser.add_argument("--lr", type=float,
-                        default=6.25e-4, help="Learning rate")
+                        default=0.0001, help="Learning rate")
     parser.add_argument("--n_epochs", type=int, default=100,
                         help="Number of training epochs")
     parser.add_argument("--check_point", type=str, default="/model_epoch_100.pwf",
                         help="Path of the pre-trained CNN")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available()
     else "cpu", help="Device (cuda or cpu)")
+    parser.add_argument("--topo_size", type=int, default=65, help="Crop size for topo input")
 
     args = parser.parse_args()
 
     if args.train_type == 'unet':
-        logger.info("---------Prepare DataSet for UNET--------")
+        logging.info("---------Prepare DataSet for UNET--------")
         trainDataset, validDataset = get_dataset(args)
-        train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=6, batch_size=args.train_batch_size,
+        train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=6,
+                                                   batch_size=args.train_batch_size,
                                                    shuffle=True)
         val_loader = torch.utils.data.DataLoader(dataset=validDataset, num_workers=6, batch_size=args.valid_batch_size,
                                                  shuffle=False)
@@ -116,7 +137,7 @@ def train():
 
     if args.train_type == 'clstm':
         lstmTrainDataset, lstmValidDataset = get_dataset_lstm(args)
-        train_LSTM(args)
+        train_LSTM(lstmTrainDataset, args)
 
 
 if __name__ == "__main__":

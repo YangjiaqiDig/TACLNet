@@ -8,7 +8,7 @@ import numpy as np
 import torch.nn as nn
 from modules import *
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '4,5,6,7'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
 
 # logger = logging.getLogger(__file__).setLevel(logging.INFO)
 logging.basicConfig(level=logging.DEBUG)
@@ -33,11 +33,11 @@ def train():
                         help="Path or url of the dataset")
     # TODO: batch size enlarge, need fit the total number of input, dividable
     parser.add_argument("--train_batch_size", type=int,
-                        default=10, help="Batch size for training")
+                        default=4, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
                         default=1, help="Batch size for validation")
     parser.add_argument("--valid_round", type=int,
-                        default=2, help="validation part: 1, 2, 3")
+                        default=3, help="validation part: 1, 2, 3")
     parser.add_argument("--lr", type=float,
                         default=0.001, help="Learning rate")
     parser.add_argument("--lr_topo", type=float,

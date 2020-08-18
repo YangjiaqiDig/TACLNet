@@ -17,15 +17,8 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
     start = time.time()
     logging.info("Start Training CLSTM for TOPO Attention")
     in_channels = 1
-    model = convolutional_rnn.Conv2dRNN(in_channels=in_channels,  # Corresponds to input size
-                                       out_channels=2,  # Corresponds to hidden size
-                                       kernel_size=3,  # Int or List[int]
-                                       num_layers=2,
-                                       bidirectional=True,
-                                       dilation=2, stride=2, dropout=0.5,
-                                       batch_first=True).to(args.device).to(args.device)
-    # model = ConvLSTM(input_dim=in_channels, hidden_dim=[32, 8, 2], kernel_size=(3, 3), num_layers=3,
-    #                  batch_first=True, bias=True, return_all_layers=False).to(args.device)
+    model = ConvLSTM(input_dim=in_channels, hidden_dim=[64, 32, 8, 2], kernel_size=(5, 5), num_layers=4,
+                     batch_first=True, bias=True, return_all_layers=False).to(args.device)
     if args.device == "cuda":
         print("GPU: ", torch.cuda.device_count())
         model = torch.nn.DataParallel(model, device_ids=list(
@@ -47,12 +40,9 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
         # iter_attention = torch.tensor(0)
         for batch, data in enumerate(train_loader):
             images, labels = data[0], data[1]  #image: (batch, 3, 1, size, size) label: (batch, size, size)
-            print(images.shape)
             out, h = model(images.to(args.device), None) # out: [(batch, 3, 2, size, size)] -> [get last hidden out]
-            output = (out[:,:,:2,:,:] + out[:,:,2:,:,:])[:,-1,:,:,:]
-            # print(output.shape)
-
-            # output = out[0][:,-1,:,:,:]  # torch.Size([batch, 2, 1024, 1024]) -> only keep last step hidden
+            # output = (out[:,:,:2,:,:] + out[:,:,2:,:,:])[:,-1,:,:,:]
+            output = out[0][:,-1,:,:,:]  # torch.Size([batch, 2, 1024, 1024]) -> only keep last step hidden
             loss_ce = loss_fun_ce(output, labels.to(args.device))
             if args.topo_attention:
                 attention, gt = loss_topo_attention(output, labels, args)
@@ -63,8 +53,8 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
             loss.backward()
             optimizer.step()
         lr_scheduler.step()
-        for param_group in optimizer.param_groups:
-            print(param_group['lr'])
+        # for param_group in optimizer.param_groups:
+        #     print(param_group['lr'])
         model.eval()
         total_acc = 0
         total_loss = 0
@@ -72,6 +62,7 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
             images, labels = data[0], data[1]
             with torch.no_grad():
                 out, h = model(images.to(args.device), None)
+                # output = (out[:, :, :2, :, :] + out[:, :, 2:, :, :])[:, -1, :, :, :]
                 output = out[0][:, -1, :, :, :]
 
                 loss_ce = loss_fun_ce(output, labels.to(args.device))

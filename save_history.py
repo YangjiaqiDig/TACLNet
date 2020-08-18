@@ -8,7 +8,10 @@ def export_history(header, save_values, args):
     folder = args.save_folder + '/valid_' + str(args.valid_round)
     if not os.path.exists(folder):
         os.makedirs(folder)
-    file_name = args.save_folder + '/valid_' + str(args.valid_round) + 'history_Valid.csv'
+    if args.topo_attention:
+        file_name = args.save_folder + '/valid_' + str(args.valid_round) + 'topo_history_Valid.csv'
+    else:
+        file_name = args.save_folder + '/valid_' + str(args.valid_round) + 'history_Valid.csv'
     file_existence = os.path.isfile(file_name)
     if not file_existence:
         file = open(file_name, 'w', newline='')
@@ -23,7 +26,10 @@ def export_history(header, save_values, args):
 
 
 def save_models(epoch, model, optimizer, args):
-    path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models'
+    if args.topo_attention:
+        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models_topo'
+    else:
+        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_models'
     if not os.path.exists(path):
         os.makedirs(path)
     torch.save({

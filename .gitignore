@@ -3,3 +3,8 @@ train_*/
 .DS_Store
 .venv
 dataset_cache*
+database*
+imgCheck*
+cpCheck*
+__pycache__
+

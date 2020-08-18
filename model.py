@@ -29,7 +29,7 @@ class UNET(nn.Module):
         self.up_2 = nn.ConvTranspose2d(in_channels=256, out_channels=128, kernel_size=2, stride=2)
         self.conv_up_2 = double_conv(256, 128)
 
-        self.up_3 = nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=2, stride=2)  # for 1250 * 1250 kernel_size=3, stride=2
+        self.up_3 = nn.ConvTranspose2d(in_channels=128, out_channels=64, kernel_size=3, stride=2)  # for 1250 * 1250 kernel_size=3, stride=2  ## for 1024 * 1024 kernel_size=2, stride=2
         self.conv_up_3 = double_conv(128, 64)
 
         self.up_4 = nn.ConvTranspose2d(in_channels=64, out_channels=32, kernel_size=2, stride=2)

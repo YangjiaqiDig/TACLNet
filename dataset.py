@@ -14,7 +14,7 @@ def chunkCrop(images):
             newData.append(test2[1])
     newData = torch.stack(newData, 0)
 
-    print(newData.shape)
+    # print(newData.shape)
     return newData
 
 def imageTransform(img_as_np, msk_as_np):
@@ -65,16 +65,16 @@ def lstmDataTrain(train, args):
     labels = train[1]
     padding_size = int(args.step_size / 2)
     padded_images = torch.cat((images[:padding_size], images, images[-padding_size:]), dim=0)
-
+    padded_labels = torch.cat((labels[:padding_size], labels, labels[-padding_size:]), dim=0)
     seq_train, seq_label = [], []
     for i in range(len(labels)):
         seq_train.append(padded_images[i:i + args.step_size])  # (3, 2, size, size)
-        seq_label.append(labels[i]) # (size, size)
+        seq_label.append(padded_labels[i:i + args.step_size]) # (size, size)
     seq_train, seq_label = torch.stack(seq_train, 0), torch.stack(seq_label, 0)
 
     seq_train = chunkCrop(seq_train)
     seq_label = chunkCrop(seq_label)
-    print(seq_label.shape, seq_train.shape)
+    # print(seq_label.shape, seq_train.shape)
 
     return seq_train, seq_label
 

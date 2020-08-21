@@ -21,7 +21,7 @@ def ceil_floor_image(image):
     return image
 
 
-def get_gaussian_kernel(kernel_size=3, sigma=1, channels=1):
+def get_gaussian_kernel(kernel_size=5, sigma=1, channels=1):
     # Create a x, y coordinate grid of shape (kernel_size, kernel_size, 2)
     x_coord = torch.arange(kernel_size)
     x_grid = x_coord.repeat(kernel_size).view(kernel_size, kernel_size)
@@ -48,7 +48,7 @@ def get_gaussian_kernel(kernel_size=3, sigma=1, channels=1):
     gaussian_kernel = gaussian_kernel.repeat(channels, 1, 1, 1)
 
     gaussian_filter = nn.Conv2d(in_channels=channels, out_channels=channels,
-                                kernel_size=kernel_size, padding=1, groups=channels, bias=False)
+                                kernel_size=kernel_size, padding=int(mean), groups=channels, bias=False)
 
     gaussian_filter.weight.data = gaussian_kernel
     gaussian_filter.weight.requires_grad = False

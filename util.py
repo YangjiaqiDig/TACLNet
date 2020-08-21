@@ -1,13 +1,11 @@
-import logging
 import os
 
-import torch
+import numpy as np
 from PIL import Image
-
 from dataset import *
 from model import UNET
 from topo import *
-import numpy as np
+
 # logger = logging.getLogger(__file__)
 logging.basicConfig(level=logging.DEBUG)
 
@@ -27,20 +25,13 @@ def load_preprocess_dataset(args):
     return train
 
 
-def downsampling(likelihoodMap, times=2):
-    maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
-    for i in range(times):
-        likelihoodMap = maxpool(likelihoodMap)
-    return likelihoodMap
-
-
-def get_dataset_lstm(args):
+def get_dataset_clstm(args):
     if args.topo_dataset_cache and os.path.isfile(args.topo_dataset_cache):
         logging.info("Load critical points dataset before CLTM DataLoader from cache at %s", args.dataset_cache)
         train_with_cp = torch.load(args.topo_dataset_cache)
     else:
         logging.info("Start Prepare critical points dataset before CLTM DataLoader")
-        originalData = load_preprocess_dataset(args) # label (n, size, size)
+        originalData = load_preprocess_dataset(args)  # label (n, size, size)
 
         # print(msk_as_np.shape)
         originalDataSet = UNETDataSet(originalData)
@@ -78,16 +69,17 @@ def get_dataset_lstm(args):
         # image = Image.fromarray(image)
         # image.save('downlh.png')
         # TODO: save and load this dataset likelihood for certain round of epoch trained model.
-        train_with_cp = convert_topo(likelihood_map_all, label_all, predict_all, args) # (n, 2, size, size)
+        train_with_cp = convert_topo(likelihood_map_all, label_all, predict_all, args)  # (n, 2, size, size)
     logging.info("DataSet for CLSTM shape %s", train_with_cp[0].shape)
     train_with_cp = list(train_with_cp)
     train_with_cp[0] = train_with_cp[0].cpu()
-    coppedTrain = train_with_cp[0]#chunkCrop(train_with_cp[0])
-    coppedLabel = train_with_cp[1]#chunkCrop(train_with_cp[1])
+    coppedTrain = train_with_cp[0]  # chunkCrop(train_with_cp[0])
+    coppedLabel = train_with_cp[1]  # chunkCrop(train_with_cp[1])
 
-    trainDataSet = LSTMDataSet([coppedTrain, coppedLabel], args) # (n, 3, 2, size, size)
+    trainDataSet = LSTMDataSet([coppedTrain, coppedLabel], args)  # (n, 3, 2, size, size)
 
     return trainDataSet
+
 
 
 def get_dataset_topoClstm(args):
@@ -103,13 +95,15 @@ def get_dataset_topoClstm(args):
     indices = list(range(dataset_size))
     split = int(np.floor(validation_split * dataset_size))
     splitIndex = split * (args.valid_round - 1)
-    train_indices, val_indices = indices[:splitIndex] + indices[splitIndex + split:], indices[splitIndex : splitIndex + split]
+    train_indices, val_indices = indices[:splitIndex] + indices[splitIndex + split:], indices[
+                                                                                      splitIndex: splitIndex + split]
     # print(train_indices, val_indices)
 
     train_sampler = torch.utils.data.Subset(dataset, train_indices)
     valid_sampler = torch.utils.data.Subset(dataset, val_indices)
 
     return train_sampler, valid_sampler
+
 
 def get_dataset(args):
     train = load_preprocess_dataset(args)
@@ -151,49 +145,6 @@ def accuracy_for_batch(labels, pred_class, args):
     for index in range(batch_size):
         total_acc += accuracy_check(labels, pred_class)
     return total_acc / batch_size
-
-
-def save_prediction(likelihood_map, pred_class, args, batch, epoch):
-    img_as_np, pred_as_np = likelihood_map.cpu().data.numpy(), pred_class.cpu().data.numpy()
-
-    img_as_np, pred_as_np = img_as_np * 255, pred_as_np * 255
-    img_as_np, pred_as_np = img_as_np.astype(np.uint8), pred_as_np.astype(np.uint8)
-    # print(img_as_np, img_as_np.shape)
-    img, pred = Image.fromarray(img_as_np.squeeze(0)), Image.fromarray(pred_as_np.squeeze(0))
-    if args.topo_attention:
-        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images_topo' + '/epoch_' + str(epoch) + '/'
-    else:
-        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images' + '/epoch_' + str(epoch) + '/'
-
-    if not os.path.exists(path):
-        os.makedirs(path)
-    # SAVE Valid Likelihood Images and Prediction
-    export_name_lh = str(batch) + 'lh.png'
-    export_name_pred = str(batch) + 'pred.png'
-    img.save(path + export_name_lh)
-    pred.save(path + export_name_pred)
-
-
-def save_groundTrue(images, labels, args, batch, epoch):
-    img_as_np = images.cpu().data.numpy()
-    label_as_np = labels.cpu().data.numpy()
-
-    img_as_np, label_as_np = img_as_np * 255, label_as_np * 255
-    img_as_np, label_as_np = img_as_np.astype(np.uint8), label_as_np.astype(np.uint8)
-    # print(img_as_np, img_as_np.shape)
-
-    img, label = Image.fromarray(img_as_np.squeeze(0)), Image.fromarray(label_as_np.squeeze(0))
-    if args.topo_attention:
-        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images_topo' + '/epoch_' + str(epoch) + '/'
-    else:
-        path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images' + '/epoch_' + str(epoch) + '/'
-    if not os.path.exists(path):
-        os.makedirs(path)
-    # SAVE Valid ground true Images
-    export_name_orig = str(batch) + 'orig.png'
-    export_name_gt = str(batch) + 'gt.png'
-    img.save(path + export_name_orig)
-    label.save(path + export_name_gt)
 
 
 if __name__ == "__main__":

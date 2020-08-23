@@ -6,6 +6,7 @@ from TDFMain_pytorch import *
 from betti_compute import betti_number
 from pre_processing import *
 import torch
+from save_history import *
 
 # logger = logging.getLogger(__file__)
 logging.basicConfig(level=logging.DEBUG)
@@ -75,7 +76,7 @@ def get_critical_points_patch(likelihoodMap, label, predict, args):
                 continue
             if groundtruth_betti_number == 0:
                 continue
-            if (abs(predict_betti_number - groundtruth_betti_number) / groundtruth_betti_number) < 0.9:
+            if (abs(predict_betti_number - groundtruth_betti_number) / groundtruth_betti_number) < 0.7:
                 continue
             if (len(likelihood.shape) < 2 or len(groundtruth.shape) < 2):
                 continue
@@ -123,14 +124,15 @@ def downsampling(likelihoodMap, times=2):
     return likelihoodMap
 
 def upsampling(likelihoodMap, times=2):
-    up = [nn.Upsample(scale_factor=(2, 2), mode="bilinear"), nn.Upsample(size=(625, 625), mode="bilinear")]
+    up = [nn.Upsample(scale_factor=(2, 2), mode="nearest"), nn.Upsample(size=(625, 625), mode="nearest")]
 
     for i in range(times):
         likelihoodMap = up[i](likelihoodMap)
         # print(likelihoodMap.shape)
     return likelihoodMap
 
-def topo_attention(output, labels, args):
+def topo_attention(output, labels, args, batch=0, epoch=0, valid=False):
+
     start = time.time()
     output = 1 - output
     labels = 1- labels
@@ -152,22 +154,16 @@ def topo_attention(output, labels, args):
     q, v, k = [], [], []
 
     for i in range(len(v_lh)):
-        print(q_lh[i].shape, labels[i][0].shape)
-
-        q_cp = get_critical_points(q_lh[i], labels[i][0], q_pred[i], args)  # (size, size)
-        v_cp = get_critical_points(v_lh[i], labels[i][1], v_pred[i], args)  # (size, size)
-        k_cp = get_critical_points(k_lh[i], labels[i][2], k_pred[i], args)  # (size, size)
+        q_cp = get_critical_points_patch(q_lh[i], labels[i][0], q_pred[i], args)  # (size, size)
+        v_cp = get_critical_points_patch(v_lh[i], labels[i][1], v_pred[i], args)  # (size, size)
+        k_cp = get_critical_points_patch(k_lh[i], labels[i][2], k_pred[i], args)  # (size, size)
 
         q.append(q_cp)
         v.append(v_cp)
         k.append(k_cp)
 
-        y = Image.fromarray((v_cp.cpu().numpy() * 255).astype(np.uint8))
-        z = Image.fromarray((k_cp.cpu().numpy() * 255).astype(np.uint8))
-        x = Image.fromarray((q_cp.cpu().numpy() * 255).astype(np.uint8))
-        x.save('imgCheck/1.png')
-        y.save('imgCheck/2.png')
-        z.save('imgCheck/3.png')
+        if valid:
+            save_attention_features(q_cp, v_cp, k_cp, batch, epoch, args)
 
     q, v, k = torch.stack(q, 0), torch.stack(v, 0), torch.stack(k, 0)
 
@@ -176,7 +172,7 @@ def topo_attention(output, labels, args):
     w, h = q.shape[1], q.shape[2]
     proj_query = q.view(batchSize, -1, w*h).permute(0,2,1).cpu()
     proj_key = k.view(batchSize, -1, w*h).cpu()
-    # print(proj_query.shape, proj_key.shape)
+
     energy = torch.bmm(proj_query, proj_key)
     softmax1D = torch.nn.Softmax(dim=-1)
     attention = softmax1D(energy)
@@ -184,26 +180,24 @@ def topo_attention(output, labels, args):
     proj_value = v.view(batchSize, -1, w*h).cpu()
     out = torch.bmm(proj_value, attention.permute(0, 2, 1))
     out = out.view(batchSize, w, h)
+    """Normalize Attention Score"""
     for i in range(len(out)):
         out[i] = (out[i] - torch.min(out[i]))/ (torch.max(out[i]) - torch.min(out[i]))
-    # imga1 = Image.fromarray((out[0].detach().cpu().numpy() * 255).astype(np.uint8))
-    # imga1.save('imgCheck/attbefore.png')
+    if valid: save_attention_score(out, batch, epoch, args)
 
     att = torch.mul(out.to(args.device), v_lh)
     attention = upsampling(att.unsqueeze(1)).squeeze(1)
-    # print(attention)
-    # imga = Image.fromarray((attention[0].detach().cpu().numpy() * 255).astype(np.uint8))
-    # imga.save('imgCheck/att.png')
+    if valid: save_attention(attention, batch, epoch, args)
 
-    out = 0.5*attention + V_lh
+    output = 0.5*attention + V_lh
+    # for i in range(len(output)):
+    #     output[i] = (output[i] - torch.min(output[i])) / (torch.max(output[i]) - torch.min(output[i]))
     out[out > 1] = 1
     out[out < 0] = 0
-
-    # img = Image.fromarray((1-out[0].detach().cpu().numpy() * 255).astype(np.uint8))
-    # lh = Image.fromarray((1-V_lh[0].detach().cpu().numpy() * 255).astype(np.uint8))
-    # img.save('imgCheck/out1.png')
-    # lh.save('imgCheck/out2.png')
+    if valid: save_likelihood([V_lh, output], batch, epoch, args)
     print('running time: ', time.time() - start)
+    output = torch.stack((output, (1-output)), dim=1)
 
-    return 1 - out
+    return output
+
 

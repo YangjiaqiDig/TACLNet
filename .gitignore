@@ -2,6 +2,7 @@ train_*/
 .env/
 .DS_Store
 .venv
+*.out
 dataset_cache*
 database*
 imgCheck*

@@ -30,7 +30,7 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
 
 
     loss_fun = nn.CrossEntropyLoss()
-    loss_fun_att = nn.MSELoss()
+    # loss_fun_att = nn.MSELoss()
     LR = args.lr_topo if args.topo_attention else args.lr
     optimizer = torch.optim.RMSprop(model.parameters(), lr=LR)
     lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
@@ -43,8 +43,8 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
             out, h = model(images.to(args.device), None) # out: [(batch, 3, 6, size, size)] -> [get last hidden out]
             output = out[0][:,-1,:,:,:]  # torch.Size([batch, 6, 1024, 1024]) -> only keep last step hidden
             if args.topo_attention:
-                out_lh = topo_attention(output, labels, args)
-                loss = loss_fun_att(out_lh, labels.float()[:,1].to(args.device))
+                output = topo_attention(output, labels, args)
+                loss = loss_fun(output, labels[:,1].to(args.device))
             else:
                 loss_1 = loss_fun(output[:,:2], labels[:,0].to(args.device))
                 loss_2 = loss_fun(output[:,2:4], labels[:,1].to(args.device))
@@ -64,9 +64,9 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
                 out, h = model(images.to(args.device), None)
                 output = out[0][:, -1, :, :, :]  # torch.Size([batch, 6, 1024, 1024]) -> only keep last step hidden
                 if args.topo_attention:
-                    out_lh = topo_attention(output, labels, args)
-                    loss = loss_fun_att(out_lh, labels.float()[:, 1].to(args.device))
-                    pred = out_lh >= 0.5
+                    output = topo_attention(output, labels, args)
+                    loss = loss_fun(output, labels[:, 1].to(args.device))
+                    pred = torch.argmax(output, dim=1)
                     acc = accuracy_for_batch(labels[:, 1].cpu(), pred.cpu(), args)
                 else:
                     loss_1 = loss_fun(output[:, :2], labels[:, 0].to(args.device))
@@ -98,10 +98,13 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
                     out, h = model(images.to(args.device))
                     output = out[0][:, -1, :, :, :]
                     if args.topo_attention:
-                        out_lh = topo_attention(output, labels, args)
-                        loss = loss_fun_att(out_lh, labels.float()[:, 1].to(args.device))
-                        pred = out_lh >= 0.5
-                        acc_val = accuracy_check(labels[:, 1].cpu(), pred.cpu(), args)
+                        output = topo_attention(output, labels, args, batch, i + 1, True)
+                        loss = loss_fun(output, labels[:, 1].to(args.device))
+                        likelihoodMap = softmax(output)[:, 1, :, :]
+                        pred = torch.argmax(output, dim=1)
+                        acc_val = accuracy_check(labels[:, 1].cpu(), pred.cpu())
+                        save_prediction_att(likelihoodMap, pred, args, batch, i + 1)
+                        save_groundTrue_att(data[0].squeeze(2), labels, args, batch, i + 1)
                     else:
                         loss_1 = loss_fun(output[:, :2], labels[:, 0].to(args.device))
                         likelihoodMap_1 = softmax(output[:, :2])[:, 1, :, :]
@@ -132,7 +135,7 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
             save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
             export_history(header, save_values, args)
 
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 10 == 0 or args.topo_attention:
             save_models(i + 1, model, optimizer, args)
 
     print(time.time()-start)

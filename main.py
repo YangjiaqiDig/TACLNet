@@ -8,7 +8,7 @@ import numpy as np
 import torch.nn as nn
 from modules import *
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1,2,3'
 
 # logger = logging.getLogger(__file__).setLevel(logging.INFO)
 logging.basicConfig(level=logging.DEBUG)
@@ -33,7 +33,7 @@ def train():
                         help="Path or url of the dataset")
     # TODO: batch size enlarge, need fit the total number of input, dividable
     parser.add_argument("--train_batch_size", type=int,
-                        default=4, help="Batch size for training")
+                        default=3, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
                         default=1, help="Batch size for validation")
     parser.add_argument("--valid_round", type=int,
@@ -41,14 +41,14 @@ def train():
     parser.add_argument("--lr", type=float,
                         default=0.001, help="Learning rate")
     parser.add_argument("--lr_topo", type=float,
-                        default=0.0001, help="Learning rate")
-    parser.add_argument("--n_epochs", type=int, default=5,
+                        default=0.001, help="Learning rate")
+    parser.add_argument("--n_epochs", type=int, default=10,
                         help="Number of training epochs")
     parser.add_argument("--check_point", type=str, default="/model_epoch_250.pwf",
                         help="Path of the pre-trained CNN")
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available()
     else "cpu", help="Device (cuda or cpu)")
-    parser.add_argument("--topo_size", type=int, default=30, help="Crop size for topo input")
+    parser.add_argument("--topo_size", type=int, default=39, help="Crop size for topo input")
 
     parser.add_argument("--step_size", type=int, default=3, help="sequence length for LSTM")
 
@@ -91,7 +91,7 @@ def train():
         trainDataset, validDataset = get_dataset_topoClstm(args)
         train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=8,
                                                    batch_size=args.train_batch_size,
-                                                   shuffle=True)
+                                                   shuffle=False)
         val_loader = torch.utils.data.DataLoader(dataset=validDataset, num_workers=8, batch_size=args.valid_batch_size,
                                                  shuffle=False)
 

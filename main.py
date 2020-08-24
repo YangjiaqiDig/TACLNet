@@ -15,12 +15,14 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 def train():
-    database = "CREMI"
+    database = "isbi13"
     parser = ArgumentParser()
     parser.add_argument("--train_type", type=str, default="clstm",
                         help="unet, unet-clstm, or clstm")
-    parser.add_argument("--topo_attention", type=bool, default=True,
+    parser.add_argument("--topo_attention", type=bool, default=False,
                         help="Add topo attention loss to train")
+    parser.add_argument("--crop", type=bool, default=True,
+                        help="Need crop for large dataset")
     parser.add_argument("--dataset_path_train", type=str, default="database/{0}/train-volume.tif".format(database),
                         help="Path or url of the dataset")
     parser.add_argument("--dataset_path_label", type=str, default="database/{0}/train-labels.tif".format(database),
@@ -42,7 +44,7 @@ def train():
                         default=0.001, help="Learning rate")
     parser.add_argument("--lr_topo", type=float,
                         default=0.001, help="Learning rate")
-    parser.add_argument("--n_epochs", type=int, default=10,
+    parser.add_argument("--n_epochs", type=int, default=1000,
                         help="Number of training epochs")
     parser.add_argument("--check_point", type=str, default="/model_epoch_250.pwf",
                         help="Path of the pre-trained CNN")
@@ -85,18 +87,6 @@ def train():
                                                  shuffle=False)
         train_LSTM(args, train_loader, val_loader)
 
-
-    if args.topo_attention:
-        logging.info("---------Prepare DataSet for attention CLSTM train--------")
-        trainDataset, validDataset = get_dataset_topoClstm(args)
-        train_loader = torch.utils.data.DataLoader(dataset=trainDataset, num_workers=8,
-                                                   batch_size=args.train_batch_size,
-                                                   shuffle=False)
-        val_loader = torch.utils.data.DataLoader(dataset=validDataset, num_workers=8, batch_size=args.valid_batch_size,
-                                                 shuffle=False)
-
-        train_LSTM_TopoAttention(train_loader, val_loader, args)
-        return
 
     if args.train_type == 'clstm':
         logging.info("---------Prepare DataSet for CLSTM--------")

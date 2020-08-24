@@ -87,6 +87,7 @@ def get_dataset_topoClstm(args):
     expandChannelDimTrain = train[0].unsqueeze(1)
 
     seq_train, seq_label = lstmDataTrain([expandChannelDimTrain, train[1]], args)
+    print(seq_train.shape)
     dataset = UNETDataSet([seq_train, seq_label])
 
     validation_split = 1 / 3

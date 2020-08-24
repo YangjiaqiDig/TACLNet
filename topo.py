@@ -192,8 +192,8 @@ def topo_attention(output, labels, args, batch=0, epoch=0, valid=False):
     output = 0.5*attention + V_lh
     # for i in range(len(output)):
     #     output[i] = (output[i] - torch.min(output[i])) / (torch.max(output[i]) - torch.min(output[i]))
-    out[out > 1] = 1
-    out[out < 0] = 0
+    output[output > 1] = 1
+    output[output < 0] = 0
     if valid: save_likelihood([V_lh, output], batch, epoch, args)
     print('running time: ', time.time() - start)
     output = torch.stack((output, (1-output)), dim=1)

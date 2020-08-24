@@ -16,7 +16,7 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
     start = time.time()
     logging.info("Start Training CLSTM")
     in_channels = 1
-    model = ConvLSTM(input_dim=in_channels, hidden_dim=[64, 32, 8, 6], kernel_size=(5, 5), num_layers=4,
+    model = ConvLSTM(input_dim=in_channels, hidden_dim=[64, 32, 12, 6], kernel_size=(7, 7), num_layers=4,
                      batch_first=True, bias=True, return_all_layers=False).to(args.device)
     if args.device == "cuda":
         print("GPU: ", torch.cuda.device_count())
@@ -30,16 +30,16 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
 
 
     loss_fun = nn.CrossEntropyLoss()
-    # loss_fun_att = nn.MSELoss()
     LR = args.lr_topo if args.topo_attention else args.lr
     optimizer = torch.optim.RMSprop(model.parameters(), lr=LR)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
     for i in range(0, args.n_epochs):
         """Train each epoch"""
         model.train()
         # iter_attention = torch.tensor(0)
         for batch, data in enumerate(train_loader):
             images, labels = data[0], data[1]  #image: (batch, 3, 1, size, size) label: (batch, 3,  size, size)
+            # print(images.shape, labels.shape)
             out, h = model(images.to(args.device), None) # out: [(batch, 3, 6, size, size)] -> [get last hidden out]
             output = out[0][:,-1,:,:,:]  # torch.Size([batch, 6, 1024, 1024]) -> only keep last step hidden
             if args.topo_attention:
@@ -54,7 +54,7 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-        # lr_scheduler.step()
+        if not args.topo_attention: lr_scheduler.step()
         model.eval()
         total_acc = 0
         total_loss = 0

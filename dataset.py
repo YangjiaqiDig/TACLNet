@@ -72,8 +72,9 @@ def lstmDataTrain(train, args):
         seq_label.append(padded_labels[i:i + args.step_size]) # (size, size)
     seq_train, seq_label = torch.stack(seq_train, 0), torch.stack(seq_label, 0)
 
-    seq_train = chunkCrop(seq_train)
-    seq_label = chunkCrop(seq_label)
+    if args.crop:
+        seq_train = chunkCrop(seq_train)
+        seq_label = chunkCrop(seq_label)
     # print(seq_label.shape, seq_train.shape)
 
     return seq_train, seq_label

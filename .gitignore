@@ -3,9 +3,13 @@ train_*/
 .DS_Store
 .venv
 *.out
+*.txt
 dataset_cache*
 database*
 imgCheck*
 cpCheck*
 __pycache__
 results*
+diceScore.py
+._*.py
+*.swp

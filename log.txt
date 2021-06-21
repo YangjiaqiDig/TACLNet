@@ -1,74 +1,74 @@
 Debuging Persistence Computation -- Log File
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start vList construction and sorting
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start sorting vList by f. value
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end sorting vList by f. value
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end vList constructed and sorting
 Number of vertices = 1849
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end explicit cell generation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start boundary list resizing
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end boundary list resizing
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start boundary calculation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 ----------filtration construction finished
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------Reducing cells, total number = 1764
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end propagating maximum values from vertices
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end cell numbering 
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start boundary list resizing
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------end boundary list resizing
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------start boundary calculation
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 ----------filtration construction finished
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------Reducing cells, total number = 3612
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------Reduction done
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------Recording persistence pairs
-Sun Aug 23 05:47:08 2020
+Mon Jun 21 18:46:35 2021
 -------Finished
 All calculations computed in 0 seconds. 
 

@@ -1,23 +1,136 @@
 from argparse import ArgumentParser
 from PIL import Image
 from lstm import *
-from model import UNET
 from save_history import *
 from util import *
 import numpy as np
 import torch.nn as nn
 import time
-from topo import  *
-import convolutional_rnn
+from topo import *
 
-softmax = nn.Softmax2d()
+
+class FocalLoss(nn.Module):
+    def __init__(self, gamma):
+        super().__init__()
+        self.gamma = gamma
+
+    def forward(self, input, target):
+        pred = input[:, 1]
+        if not (target.size() == pred.size()):
+            raise ValueError("Target size ({}) must be the same as pred size ({})"
+                             .format(target.size(), pred.size()))
+
+        max_val = (-pred).clamp(min=0)
+        loss = pred - pred * target + max_val + \
+               ((-max_val).exp() + (-pred - max_val).exp()).log()
+
+        invprobs = F.logsigmoid(-pred * (target * 2.0 - 1.0))
+        loss = (invprobs * self.gamma).exp() * loss
+
+        return loss.mean()
+
+
+def dice_score(input, target, args):
+    mid = int(args.step_size / 2)
+    predict, label = input[:, mid * 2: (mid + 1) * 2], target[:, mid].to(args.device)
+
+    totalScore = 0
+    for i, eachInput in enumerate(predict):
+        pred = torch.argmax(eachInput, dim=0).float()
+        iflat = pred.contiguous().view(-1)
+        tflat = label[i].contiguous().view(-1)
+        intersection = (iflat * tflat).sum()
+
+        score = (2. * intersection + 0.000001) / (iflat.sum() + tflat.sum() + 0.000001)
+        totalScore += score
+    return totalScore / predict.shape[0]
+
+
+def dice_loss(input, target):
+    smooth = 1.
+
+    iflat = input[:, 1].contiguous().view(-1)
+    tflat = target.contiguous().view(-1)
+    intersection = (iflat * tflat).sum()
+
+    # return (2. * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth)
+    return 1 - ((2. * intersection + smooth) /
+                (iflat.sum() + tflat.sum() + smooth))
+
+
+class MixDiceFocalLoss(nn.Module):
+    def __init__(self, alpha, gamma):
+        super().__init__()
+        self.alpha = alpha
+        self.focal = FocalLoss(gamma)
+
+    def forward(self, input, target):
+        loss_focal = self.focal(input, target)
+        loss_dice = dice_loss(input, target)  # torch.log(dice_loss(input, target))
+
+        loss = self.alpha * loss_focal + loss_dice
+        # loss = self.alpha*loss_focal - loss_dice
+        return loss.mean()
+
+
+class MixDiceCrossEntropyLoss(nn.Module):
+    def __init__(self, alpha, beta):
+        super().__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.crossEntropy = nn.CrossEntropyLoss()
+
+    def forward(self, input, target):
+        loss_dice = dice_loss(input, target)  # torch.log(dice_loss(input, target))
+        loss = self.alpha * self.crossEntropy(input, target) + loss_dice * self.beta
+        return loss
+
+
+def lossForSeqSlices(predicts, labels, args):
+    loss_fun_mix = MixDiceCrossEntropyLoss(1., 0.0)
+    total_loss = 0
+    for i in range(args.step_size):
+        total_loss += loss_fun_mix(predicts[:, i * 2: (i + 1) * 2], labels[:, i].to(args.device))
+
+    loss = total_loss / args.step_size
+    return loss
+
+
+def accForSeqSlicesBatch(predicts, labels, args):
+    total_acc = 0
+    for i in range(args.step_size):
+        pred_class = torch.argmax(predicts[:, i * 2: (i + 1) * 2], dim=1)
+        total_acc += accuracy_for_batch(labels[:, i].cpu(), pred_class.cpu(), args)
+
+    acc = total_acc / args.step_size
+
+    return acc
+
+
+def accForSeqSlices(org, predicts, labels, args, batch, i, name):
+    total_acc = 0
+    likelihoodMaps, pred_class_all = [], []
+    for step in range(args.step_size):
+        pred_class = torch.argmax(predicts[:, step * 2 : (step + 1) * 2], dim=1)
+        pred_class_all.append(pred_class)
+        acc = accuracy_check(labels[:, step].cpu(), pred_class.cpu())
+        total_acc += acc
+        likelihoodMap = predicts[:, step * 2 : (step + 1) * 2][:, 1, :, :]
+        likelihoodMaps.append(likelihoodMap)
+    
+    acc = total_acc / args.step_size	
+    save_prediction(likelihoodMaps, pred_class_all, args, batch, i + 1, name)
+    save_groundTrue(org.squeeze(2), labels, args, batch, i + 1, name)
+    return acc, acc, acc, acc
+
 
 def train_LSTM_TopoAttention(train_loader, val_loader, args):
     start = time.time()
     logging.info("Start Training CLSTM")
     in_channels = 1
-    model = ConvLSTM(input_dim=in_channels, hidden_dim=[64, 32, 12, 6], kernel_size=(7, 7), num_layers=4,
+    model = ConvLSTM(input_dim=in_channels, hidden_dim=[16, 8, 2 * args.step_size], kernel_size=(3, 3), num_layers=3,
                      batch_first=True, bias=True, return_all_layers=False).to(args.device)
+    print(2 * args.step_size)
     if args.device == "cuda":
         print("GPU: ", torch.cuda.device_count())
         model = torch.nn.DataParallel(model, device_ids=list(
@@ -28,29 +141,27 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
         model.load_state_dict(checkpoint['state_dict'])
         logging.info("Start Training Topo Attention, loading pre-trained model from {}".format(path))
 
-
-    loss_fun = nn.CrossEntropyLoss()
+    global loss_fun
+    # loss_fun = nn.CrossEntropyLoss()
+    loss_fun = MixDiceCrossEntropyLoss(1.0, 0.0)
     LR = args.lr_topo if args.topo_attention else args.lr
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=LR)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.5)
+    optimizer = torch.optim.RMSprop(model.parameters(), lr=LR)  # , eps=1e-05, weight_decay=0.000001)
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    iter_attention_train = []
+    iter_attention = []
     for i in range(0, args.n_epochs):
-        """Train each epoch"""
         model.train()
-        # iter_attention = torch.tensor(0)
+        new_epoch_start = time.time()
         for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1]  #image: (batch, 3, 1, size, size) label: (batch, 3,  size, size)
-            # print(images.shape, labels.shape)
-            out, h = model(images.to(args.device), None) # out: [(batch, 3, 6, size, size)] -> [get last hidden out]
-            output = out[0][:,-1,:,:,:]  # torch.Size([batch, 6, 1024, 1024]) -> only keep last step hidden
+            images, labels_down = data[0], data[1]  # data[0]: (batch, 3, 1, size, size) label: (batch, 3,  size, size)
+
+            output_down = model(images.to(args.device), None)  # out: [batch, 6, size, size]
             if args.topo_attention:
-                output = topo_attention(output, labels, args)
-                loss = loss_fun(output, labels[:,1].to(args.device))
+                output_topo, label, iter_attention_train = topo_attention(output_down, labels_down,
+                                                                          iter_attention_train, args, batch, i)
+                loss = loss_fun(output_topo, label)  # labels[:,1].to(args.device))
             else:
-                loss_1 = loss_fun(output[:,:2], labels[:,0].to(args.device))
-                loss_2 = loss_fun(output[:,2:4], labels[:,1].to(args.device))
-                loss_3 = loss_fun(output[:,-2:], labels[:,2].to(args.device))
-                loss = (loss_1 + loss_2 + loss_3) / 3
-            model.zero_grad()
+                loss = lossForSeqSlices(output_down, labels_down, args)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -58,228 +169,112 @@ def train_LSTM_TopoAttention(train_loader, val_loader, args):
         model.eval()
         total_acc = 0
         total_loss = 0
+        total_score = 0
         for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1]
+            images, labels_down = data[0], data[1]  # data[0]: (batch, 3, 1, size, size) label: (batch, 3,  size, size)
             with torch.no_grad():
-                out, h = model(images.to(args.device), None)
-                output = out[0][:, -1, :, :, :]  # torch.Size([batch, 6, 1024, 1024]) -> only keep last step hidden
+                output_down = model(images.to(args.device),
+                                    None)  # out: [batch, 3, 6, size, size] -> [batch, 6, size, size]
                 if args.topo_attention:
-                    output = topo_attention(output, labels, args)
-                    loss = loss_fun(output, labels[:, 1].to(args.device))
-                    pred = torch.argmax(output, dim=1)
-                    acc = accuracy_for_batch(labels[:, 1].cpu(), pred.cpu(), args)
+                    output_topo, label, iter_attention = topo_attention(output_down, labels_down, iter_attention, args,
+                                                                        batch, i)
+                    loss = loss_fun(output_topo, label)  # labels[:, 1].to(args.device))
+                    pred = torch.argmax(output_topo, dim=1)
+                    acc = accuracy_for_batch(label.cpu(), pred.cpu(), args)
                 else:
-                    loss_1 = loss_fun(output[:, :2], labels[:, 0].to(args.device))
-                    pred_class_1 = torch.argmax(output[:, :2], dim=1)
-                    acc_1 = accuracy_for_batch(labels[:, 0].cpu(), pred_class_1.cpu(), args)
-
-                    loss_2 = loss_fun(output[:, 2:4], labels[:, 1].to(args.device))
-                    pred_class_2 = torch.argmax(output[:, 2:4], dim=1)
-                    acc_2 = accuracy_for_batch(labels[:, 1].cpu(), pred_class_2.cpu(), args)
-
-                    loss_3 = loss_fun(output[:, -2:], labels[:, 2].to(args.device))
-                    pred_class_3 = torch.argmax(output[:, -2:], dim=1)
-                    acc_3 = accuracy_for_batch(labels[:, 2].cpu(), pred_class_3.cpu(), args)
-
-                    loss = (loss_1 + loss_2 + loss_3) / 3
-                    acc = (acc_1 + acc_2 + acc_3) / 3
-
+                    loss = lossForSeqSlices(output_down, labels_down, args)
+                    acc = accForSeqSlicesBatch(output_down, labels_down, args)
+                score = dice_score(output_down, labels_down, args)
                 total_acc += acc
                 total_loss += loss.cpu().item()
+                total_score += score.cpu()
         train_acc_epoch, train_loss_epoch = total_acc / (batch + 1), total_loss / (batch + 1)
-        print('Epoch', str(i + 1), 'Train loss:', train_loss_epoch, "Train acc", train_acc_epoch)
+        print('Epoch', str(i + 1), 'Train loss:', train_loss_epoch, "Train acc", train_acc_epoch, "Train Dice Score: ",
+              total_score / (batch + 1))
         """Validation for every 5 epochs"""
         if (i + 1) % 5 == 0 or args.topo_attention:
             total_val_loss = 0
             total_val_acc = 0
+            total_val_score = 0
+            total_acc_val_1, total_acc_val_2, total_acc_val_3 = 0, 0, 0
             for batch, data in enumerate(val_loader):
-                images, labels = data[0], data[1]
+                if args.database == 'Hepatic':
+                    images, labels_down, name = data[0], data[1], data[
+                        2]  # data[0]: (batch, 3, 1, size, size) label: (batch, 3,  size, size)
+                else:
+                    images, labels_down = data[0], data[1]
+                    name = []
                 with torch.no_grad():
-                    out, h = model(images.to(args.device))
-                    output = out[0][:, -1, :, :, :]
+                    output_down = model(images.to(args.device),
+                                        None)  # out: [batch, 3, 6, size, size] -> [batch, 6, size, size]
                     if args.topo_attention:
-                        output = topo_attention(output, labels, args, batch, i + 1, True)
-                        loss = loss_fun(output, labels[:, 1].to(args.device))
-                        likelihoodMap = softmax(output)[:, 1, :, :]
-                        pred = torch.argmax(output, dim=1)
-                        acc_val = accuracy_check(labels[:, 1].cpu(), pred.cpu())
+                        output_topo, label, iter_attention = topo_attention(output_down, labels_down, iter_attention,
+                                                                            args, batch, i + 1, True)
+                        loss = loss_fun(output_topo, label)  # labels[:, 1].to(args.device))
+                        likelihoodMap = output_topo[:, 1, :, :]
+                        pred = torch.argmax(output_topo, dim=1)
+                        acc_val = accuracy_check(label.cpu(), pred.cpu())
                         save_prediction_att(likelihoodMap, pred, args, batch, i + 1)
-                        save_groundTrue_att(data[0].squeeze(2), labels, args, batch, i + 1)
+                        save_groundTrue_att(images.squeeze(2), labels_down, args, batch, i + 1)
                     else:
-                        loss_1 = loss_fun(output[:, :2], labels[:, 0].to(args.device))
-                        likelihoodMap_1 = softmax(output[:, :2])[:, 1, :, :]
-                        pred_class_1 = torch.argmax(output[:, :2], dim=1)
-                        acc_val_1 = accuracy_check(labels[:, 0].cpu(), pred_class_1.cpu())
-
-                        loss_2 = loss_fun(output[:, 2:4], labels[:, 1].to(args.device))
-                        likelihoodMap_2 = softmax(output[:, 2:4])[:, 1, :, :]
-                        pred_class_2 = torch.argmax(output[:, 2:4], dim=1)
-                        acc_val_2 = accuracy_check(labels[:, 1].cpu(), pred_class_2.cpu())
-
-                        loss_3 = loss_fun(output[:, -2:], labels[:, 2].to(args.device))
-                        likelihoodMap_3 = softmax(output[:, -2:])[:, 1, :, :]
-                        pred_class_3 = torch.argmax(output[:, -2:], dim=1)
-                        acc_val_3 = accuracy_check(labels[:, 2].cpu(), pred_class_3.cpu())
-
-                        loss = (loss_1 + loss_2 + loss_3) / 3
-                        acc_val = (acc_val_1 + acc_val_2 + acc_val_3) / 3
-
-                        save_prediction([likelihoodMap_1, likelihoodMap_2, likelihoodMap_3], [pred_class_1, pred_class_2, pred_class_3], args, batch, i + 1)
-                        save_groundTrue(data[0].squeeze(2), labels, args, batch, i + 1)
+                        loss = lossForSeqSlices(output_down, labels_down.long(), args)
+                        acc_val, acc_val_1, acc_val_2, acc_val_3 = accForSeqSlices(images, output_down,
+                                                                                   labels_down.long(), args, batch, i,
+                                                                                   name)
+                    score = dice_score(output_down, labels_down.long(), args)
                     total_val_loss += loss.cpu().item()
                     total_val_acc += acc_val
+                    total_val_score += score.cpu()
+                    # if not args.topo_attention:
+                    #     total_acc_val_1 += acc_val_1
+                    #     total_acc_val_2 += acc_val_2
+                    #     total_acc_val_3 += acc_val_3
             valid_acc_epoch, valid_loss_epoch = total_val_acc / (batch + 1), total_val_loss / (batch + 1),
-            print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch)
+            topo_time = time.time() - new_epoch_start if args.topo_attention else 0
+            print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch, "val Dice score:",
+                  total_val_score / (batch + 1), "topo-attention time", topo_time)
+            # if not args.topo_attention:
+            #     valid_acc1_epoch, valid_acc2_epoch, valid_acc3_epoch = total_acc_val_1 / (batch + 1), total_acc_val_2 / (batch + 1), total_acc_val_3 / (batch + 1),
+            #     print("val acc 1:", valid_acc1_epoch, "val acc 2:", valid_acc2_epoch, "val acc 3:", valid_acc3_epoch)
 
             header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
-            save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
+            save_values = [i + 1, train_loss_epoch, train_acc_epoch, valid_loss_epoch, valid_acc_epoch]
             export_history(header, save_values, args)
 
         if (i + 1) % 10 == 0 or args.topo_attention:
             save_models(i + 1, model, optimizer, args)
 
-    print(time.time()-start)
-
-def train_LSTM(args, train_loader, val_loader):
-    logging.info("Start Training CLSTM with TOPO input")
-    in_channels = 1
-    net = ConvLSTM(input_dim=in_channels, hidden_dim=[16, 2, 2], kernel_size=(3,3), num_layers=3,
-                 batch_first=True, bias=True, return_all_layers=False).to(args.device)
-    if args.device == "cuda":
-        print("GPU: ", torch.cuda.device_count())
-        net = torch.nn.DataParallel(net, device_ids=list(
-            range(torch.cuda.device_count()))).cuda()
-    # loss_fun = nn.MSELoss()
-    loss_fun = nn.CrossEntropyLoss()
-    optimizer = torch.optim.RMSprop(net.parameters(), lr=args.lr)
-    lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
-    for i in range(0, args.n_epochs):
-        """Train each epoch"""
-        net.train()
-        for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1] #image: (batch, 3, 2, size, size) label: (4, size, size)
-            inputToModelOnlyLh = images[:,:,1:,:,:]
-            out, h = net(inputToModelOnlyLh.to(args.device), None)
-            # print(len(out), len(h), out[0].shape, len(h[0]), h[0][0].shape, h[0][1].shape)
-            # print(out.shape,len(h), h[0].shape) # torch.Size([4, 3, 2, 1024, 1024]) 2 torch.Size([8, 2, 1, 1024, 1024])
-            output = out[0][:,-1,:,:,:] # torch.Size([4, 2, 1024, 1024])
-            loss = loss_fun(output, labels.to(args.device))
-            net.zero_grad()
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-        # lr_scheduler.step()
-        """Get Loss and Accuracy for each epoch"""
-        net.eval()
-        total_acc = 0
-        total_loss = 0
-        for batch, data in enumerate(train_loader):
-            images, labels = data[0], data[1]
-            inputToModelOnlyLh = images[:,:,1:,:,:]
-            with torch.no_grad():
-                out, h = net(inputToModelOnlyLh.to(args.device), None)
-                output = out[0][:, -1, :, :, :]
-
-                loss = loss_fun(output, labels.to(args.device))
-                pred_class = torch.argmax(output,dim=1)
-                acc = accuracy_for_batch(labels.cpu(), pred_class.cpu(), args)
-                total_acc += acc
-                total_loss += loss.cpu().item()
-        train_acc_epoch, train_loss_epoch = total_acc / (batch + 1), total_loss / (batch + 1)
-        print('Epoch', str(i + 1), 'Train loss:', train_loss_epoch, "Train acc", train_acc_epoch)
-        """Validation for every 5 epochs"""
-        if (i + 1) % 5 == 0:
-            total_val_loss = 0
-            total_val_acc = 0
-            for batch, data in enumerate(val_loader):
-                images, labels = data[0], data[1]
-                inputToModelOnlyLh = images[:, :, 1:, :, :]
-                with torch.no_grad():
-                    out, h = net(inputToModelOnlyLh.to(args.device))
-                    output = out[0][:, -1, :, :, :]
-                    loss = loss_fun(output, labels.to(args.device))
-                    pred_class = torch.argmax(output, dim=1)
-                    likelihoodMap = softmax(output)[:, 1, :, :]
-                    save_prediction(likelihoodMap, pred_class, args, batch, i + 1)
-                    save_groundTrue(inputToModelOnlyLh[:,1].squeeze(1).squeeze(1), labels, args, batch, i + 1)
-                    total_val_loss += loss.cpu().item()
-                    acc_val = accuracy_check(labels.cpu(), pred_class.cpu())
-                    total_val_acc += acc_val
-            valid_acc_epoch, valid_loss_epoch = total_val_acc / (batch + 1), total_val_loss / (batch + 1),
-            print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch)
-
-            header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
-            save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
-            export_history(header, save_values, args)
-
-        if (i + 1) % 10 == 0:
-            save_models(i + 1, net, optimizer, args)
-    return
+    print('final running time:', time.time() - start)
 
 
-def train_UNET(args, train_loader, val_loader):
-    logging.info("---------Using device %s--------", args.device)
+if __name__ == "__main__":
+    def upsampling(likelihoodMap, times=2):
+        up = [nn.Upsample(scale_factor=2, mode="nearest"), nn.Upsample(size=(625, 625), mode="nearest")]
 
-    model = UNET()
-    if args.device == "cuda":
-        print("GPU: ", torch.cuda.device_count())
-        model = torch.nn.DataParallel(model, device_ids=list(
-            range(torch.cuda.device_count()))).cuda()
-    # loss_fun = nn.MSELoss()
-    loss_fun = nn.CrossEntropyLoss()
-    optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr)
+        for i in range(times):
+            likelihoodMap = up[i](likelihoodMap)
+        return likelihoodMap
 
-    logging.info("---------Initializing Training For UNET!--------")
-    for i in range(0, args.n_epochs):
-        """Train each epoch"""
-        model.train()
-        for batch, data in enumerate(train_loader):
-            images, labels = data[0].unsqueeze(1), data[1]
-            output, likelihoodMap = model(images.to(args.device))
-            # print(likelihoodMap)
-            loss = loss_fun(output, labels.to(args.device))
-            # print(loss)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
 
-        """Get Loss and Accuracy for each epoch"""
-        model.eval()
-        total_acc = 0
-        total_loss = 0
-        for batch, data in enumerate(train_loader):
-            images, labels = data[0].unsqueeze(1), data[1]
-            with torch.no_grad():
-                output, likelihoodMap = model(images.to(args.device))
-                loss = loss_fun(output, labels.to(args.device))
-                pred_class = likelihoodMap >= 0.5
-                acc = accuracy_for_batch(labels.cpu(), pred_class.cpu(), args)
-                total_acc += acc
-                total_loss += loss.cpu().item()
-        train_acc_epoch, train_loss_epoch = total_acc / (batch + 1), total_loss / (batch + 1)
-        print('Epoch', str(i + 1), 'Train loss:', train_loss_epoch, "Train acc", train_acc_epoch)
+    imgPathlh = Image.open('imgCheck/lh_in.png')
+    imgPathscore = Image.open('imgCheck/score.png')
+    for i, img_as_img in enumerate(ImageSequence.Iterator(imgPathlh)):
+        img_as_np = np.asarray(img_as_img)
+    img_as_tensor = torch.from_numpy(img_as_np).float()
+    img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
+    for i, img_as_img in enumerate(ImageSequence.Iterator(imgPathscore)):
+        img_as_np2 = np.asarray(img_as_img)
+    img_as_tensor2 = torch.from_numpy(img_as_np2).float()
+    img_as_tensor2 = (img_as_tensor2 - torch.min(img_as_tensor2)) / (
+            torch.max(img_as_tensor2) - torch.min(img_as_tensor2))
+    print(img_as_tensor2.shape)
+    img_as_tensor2 = upsampling(img_as_tensor2.unsqueeze(0).unsqueeze(0)).squeeze(0).squeeze(0)
 
-        """Validation for every 5 epochs"""
-        if (i + 1) % 5 == 0:
-            total_val_loss = 0
-            total_val_acc = 0
-            for batch, data in enumerate(val_loader):
-                images, labels = data[0].unsqueeze(1), data[1]
-                with torch.no_grad():
-                    output, x = model(images.to(args.device))
-                    pred_class = likelihoodMap >= 0.5
-                    loss = loss_fun(output, labels.to(args.device))
-                    save_prediction(likelihoodMap, pred_class, args, batch, i + 1)
-                    save_groundTrue(data[0], labels, args, batch, i + 1)
-                    total_val_loss += loss.cpu().item()
-                    acc_val = accuracy_check(labels.cpu(), pred_class.cpu())
-                    total_val_acc += acc_val
-            valid_acc_epoch, valid_loss_epoch = total_val_acc / (batch + 1), total_val_loss / (batch + 1),
-            print('Val loss:', valid_loss_epoch, "val acc:", valid_acc_epoch)
+    result = 0.5 * img_as_tensor + img_as_tensor2
+    result = (result - torch.min(result)) / (torch.max(result) - torch.min(result))
 
-            header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
-            save_values = [i + 1, train_acc_epoch, train_loss_epoch, valid_acc_epoch, valid_loss_epoch]
-            export_history(header, save_values, args)
-
-        if (i + 1) % 10 == 0:
-            save_models(i + 1, model, optimizer, args)
+    # result[result > 1] = 1
+    # result[result < 0] = 0
+    # result = result <= 0.5
+    saveForTest(result, 0, type='result4')
+    print('done')

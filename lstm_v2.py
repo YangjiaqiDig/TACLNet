@@ -1,7 +1,7 @@
 import torch.nn as nn
 import torch
 
-softmax = nn.Softmax2d()
+
 class ConvLSTMCell(nn.Module):
 
     def __init__(self, input_dim, hidden_dim, kernel_size, bias, last):
@@ -35,8 +35,10 @@ class ConvLSTMCell(nn.Module):
                               bias=self.bias)
         self.last = last
         nn.init.xavier_uniform_(self.conv.weight)
-#         self.bn = nn.BatchNorm2d(4 * self.hidden_dim)
+        #         self.bn = nn.BatchNorm2d(4 * self.hidden_dim)
         self.relu = nn.ReLU(inplace=True)
+        self.dropout = nn.Dropout(0.5)
+
 
     def forward(self, input_tensor, cur_state):
         h_cur, c_cur = cur_state
@@ -45,9 +47,8 @@ class ConvLSTMCell(nn.Module):
 
         combined_conv = self.conv(combined)
         # combined_conv = self.bn(combined_conv)
-        # combined_conv = self.relu(combined_conv)
 #        if not self.last: combined_conv = self.relu(combined_conv)
-
+#         if not self.last: combined_conv = self.dropout(combined_conv)
         cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
         i = torch.sigmoid(cc_i)
         f = torch.sigmoid(cc_f)
@@ -61,7 +62,7 @@ class ConvLSTMCell(nn.Module):
 
     def init_hidden(self, batch_size, image_size):
         height, width = image_size
-        h0= torch.empty(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device)
+        h0 = torch.empty(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device)
         c0 = torch.empty(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device)
         nn.init.xavier_uniform_(h0)
         nn.init.xavier_uniform_(c0)
@@ -127,9 +128,21 @@ class ConvLSTM(nn.Module):
                                           hidden_dim=self.hidden_dim[i],
                                           kernel_size=self.kernel_size[i],
                                           bias=self.bias,
-                                          last= (self.isLastLayer == i)))
+                                          last=(self.isLastLayer == i)))
 
         self.cell_list = nn.ModuleList(cell_list)
+        self.double_conv = nn.Sequential(
+            nn.Conv2d(in_channels=3*6, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=64, out_channels=16, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=16, out_channels=6, kernel_size=3, padding=1)
+        )
+
+        nn.init.xavier_uniform_(self.double_conv[0].weight)
+        # nn.init.xavier_uniform_(self.double_conv[2].weight)
+        # nn.init.xavier_uniform_(self.double_conv[4].weight)
+
 
     def forward(self, input_tensor, hidden_state=None):
         """
@@ -178,18 +191,20 @@ class ConvLSTM(nn.Module):
             layer_output_list.append(layer_output)
             last_state_list.append([h, c])
 
-
         if not self.return_all_layers:
             layer_output = layer_output_list[-1]
             last_state = last_state_list[-1]
-        lastHiddenOut = layer_output[:,-1] # batch, last layer size, n, n
-        # print(lastHiddenOut[:,2:4].shape)
-        # ssss
-        # out = [softmax(lastHiddenOut[:,:2]), softmax(lastHiddenOut[:,2:4]), softmax(lastHiddenOut[:,-2:])]
-        out = [softmax(lastHiddenOut)]
-        finalOutput = torch.cat(out, dim=1)
 
-        return finalOutput
+
+        # print(layer_output_list[0].shape)
+        b, _, _, h, w = layer_output.shape
+
+        outBeforeCnn = layer_output.view(b, -1, h, w)
+        # print(outBeforeCnn.shape)
+        # outBeforeCnn = layer_output[:,-1]
+        output = self.double_conv(outBeforeCnn)
+        # print(layer_output_list[0].shape)
+        return output #layer_output_list[0]#, last_state_list
 
     def _init_hidden(self, batch_size, image_size):
         init_states = []

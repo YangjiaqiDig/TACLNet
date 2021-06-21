@@ -1,4 +1,3 @@
-# from topoLoss import *
 import logging
 import time
 from PIL import Image
@@ -16,9 +15,13 @@ np.set_printoptions(edgeitems=60)
 
 n_fix = 0
 n_remove = 0
-pers_thd_lh = 0.03
+pers_thd_lh = 0.01
 pers_thd_gt = 0.03
 
+def filterBcp(bcp, pers):
+    bcp = bcp[np.where(pers > pers_thd_lh)]
+
+    return bcp
 
 def getPers(likelihood):
     pd_lh, bcp_lh, dcp_lh = compute_persistence_2DImg_1DHom_lh(likelihood)
@@ -30,6 +33,8 @@ def getPers(likelihood):
         lh_pers = np.array([])
         lh_pers_valid = np.array([])
 
+    bcp_lh = filterBcp(bcp_lh, lh_pers) # comment this line to keep all critical poins
+
     return pd_lh, bcp_lh, dcp_lh, lh_pers, lh_pers_valid
 
 
@@ -40,8 +45,7 @@ def getTopoFilter(criticPointMap, bcp_lh, args):
         criticPointMap[int(coor[0])][int(coor[1])] = 1
 
     criticPointMap = addGaussianFilter(criticPointMap, args)
-    criticPointMap = criticPointMap.squeeze(0).squeeze(0)
-    criticPointMap = (criticPointMap - torch.min(criticPointMap)) * 1 / (torch.max(criticPointMap) - torch.min(criticPointMap))
+    criticPointMap = (criticPointMap - torch.min(criticPointMap)) / (torch.max(criticPointMap) - torch.min(criticPointMap)) if torch.max(criticPointMap) != 0 else criticPointMap
 
     return criticPointMap
 
@@ -76,15 +80,13 @@ def get_critical_points_patch(likelihoodMap, label, predict, args):
                 continue
             if groundtruth_betti_number == 0:
                 continue
-            if (abs(predict_betti_number - groundtruth_betti_number) / groundtruth_betti_number) < 0.7:
+            if (abs(predict_betti_number - groundtruth_betti_number) / groundtruth_betti_number) < 0.3:
                 continue
             if (len(likelihood.shape) < 2 or len(groundtruth.shape) < 2):
                 continue
             print('row: ', y, 'col: ', x)
             pd_lh, bcp_lh, dcp_lh, lh_pers, lh_pers_valid = getPers(likelihood)
             criticPointMap = getTopoFilter(criticPointMap, bcp_lh, args)
-            # saveForTest(criticPointMap, i, type='cp')
-            # saveForTest(likelihood, i , type='lh')
             criticPointMapAll[y:min(y + topo_size, et_dmap.shape[0]),
             x:min(x + topo_size, et_dmap.shape[1])] = criticPointMap
     return criticPointMapAll
@@ -93,13 +95,11 @@ def get_critical_points_patch(likelihoodMap, label, predict, args):
 def saveForTest(img, i, type):
     img[img > 1] = 1
     img[img < 0] = 0
-    # cp = 1 - cp
-    # print(img)
+
     img = img * 255
     img = img.detach().cpu().numpy().astype(np.uint8)
-    # print(img)
     img = Image.fromarray(img)
-    img.save('cpCheck/' + str(i) + type + '.png')
+    img.save('paper/' + str(i) + type + '.png')
 
 
 def convert_topo(likelihoodMaps, labels, predict_all, args):
@@ -116,88 +116,226 @@ def convert_topo(likelihoodMaps, labels, predict_all, args):
     return train
 
 
-def downsampling(likelihoodMap, times=2):
-    maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+def downsampling(likelihoodMap, args, times=2):
+    if 'ISBI' in args.database:
+        avgpool = nn.AvgPool2d(kernel_size=2, stride=2)
+    else:
+        avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
     for i in range(times):
-        likelihoodMap = maxpool(likelihoodMap)
+        likelihoodMap = avgpool(likelihoodMap)
 
     return likelihoodMap
 
 def upsampling(likelihoodMap, times=2):
-    up = [nn.Upsample(scale_factor=(2, 2), mode="nearest"), nn.Upsample(size=(625, 625), mode="nearest")]
+    up = [nn.Upsample(scale_factor=2, mode="bilinear"), nn.Upsample(size=(625, 625), mode="bilinear")]
 
     for i in range(times):
         likelihoodMap = up[i](likelihoodMap)
         # print(likelihoodMap.shape)
     return likelihoodMap
 
-def topo_attention(output, labels, args, batch=0, epoch=0, valid=False):
+def temporalAttention(attention, iter_attention, batch, epoch):
+    if epoch == 0:
+        iter_attention.append(attention.detach())
+    else:
+        attention = attention + iter_attention[batch] * 0.1
+        iter_attention[batch] = attention.detach()
+    return attention, iter_attention
 
-    start = time.time()
-    output = 1 - output
-    labels = 1- labels
-    softmax = torch.nn.Softmax2d()
+def oneImageAttention(query, key0, key1, key2, value):
+    w, h = query.shape[1], query.shape[2]
+    proj_query = query.squeeze(0).view(-1, w*h).permute(1,0).cpu()
+    i=0
+    for key in [key0, key1, key2]:
+        proj_key = key.squeeze(0).view(-1, w*h).cpu()
+        energy = torch.mm(proj_query, proj_key)
+        softmax1D = torch.nn.Softmax(dim=-1)
+        similarity = softmax1D(energy)
+        # if i == 1: print(similarity)
+        
+        proj_value = value.squeeze(0).view(-1, w*h).cpu()
+        score = torch.mm(proj_value, similarity.permute(1,0))
+        if i== 0: print(score, 'hhhhh')
+        attention = score.view(w, h)
+        
+        attention = (attention - torch.min(attention)) / (torch.max(attention) - torch.min(attention))
+        
+        saveForTest(attention, i, 'att.png')
+        i+=1
+   
 
-    # [batch, 6, size, size], [batch, 3, size, size]
-    V_lh = softmax(output[:, 2:4])[:, 1]
-    output = downsampling(output)
-    labels = downsampling(labels.float())
+def get_attention_map(output, labels, iter_attention, args, batch, epoch, valid):
+#    lh0 = output[0]
+#    lh1 = output[1] # [batch, size, size]
+#    lh2 = output[2]
 
-    q_lh = softmax(output[:, :2])[:, 1]
-    v_lh = softmax(output[:, 2:4])[:, 1]  # [batch, size, size]
-    k_lh = softmax(output[:, -2:])[:, 1]
+#    pred0 = lh0 >= 0.5
+#    pred1 = lh1 >= 0.5
+#    pred2 = lh2 >= 0.5
 
-    q_pred = q_lh >= 0.5
-    v_pred = v_lh >= 0.5
-    k_pred = k_lh >= 0.5
+#    key0, key1, key2 = [], [], []
 
-    q, v, k = [], [], []
-
-    for i in range(len(v_lh)):
-        q_cp = get_critical_points_patch(q_lh[i], labels[i][0], q_pred[i], args)  # (size, size)
-        v_cp = get_critical_points_patch(v_lh[i], labels[i][1], v_pred[i], args)  # (size, size)
-        k_cp = get_critical_points_patch(k_lh[i], labels[i][2], k_pred[i], args)  # (size, size)
-
-        q.append(q_cp)
-        v.append(v_cp)
-        k.append(k_cp)
-
+    keys = [[] for j in range(args.step_size)]
+    num_batch = len(output[0])
+    for i in range(num_batch):
+        cp_group = []
+        for step, lh in enumerate(output):
+            pred = lh >= 0.5
+            cp = get_critical_points_patch(lh[i], labels[i][step], pred[i], args)  # (size, size) 
+            keys[step].append(cp)
+            cp_group.append(cp)   
+#        cp0 = get_critical_points_patch(lh0[i], labels[i][0], pred0[i], args)  # (size, size)
+#        cp1 = get_critical_points_patch(lh1[i], labels[i][1], pred1[i], args)  # (size, size)
+#        cp2 = get_critical_points_patch(lh2[i], labels[i][2], pred2[i], args)  # (size, size)
+#        key0.append(cp0)
+#        key1.append(cp1)
+#        key2.append(cp2)
         if valid:
-            save_attention_features(q_cp, v_cp, k_cp, batch, epoch, args)
+            save_attention_features(cp_group, batch, epoch, args)
+    keys = [ torch.stack(key, 0).unsqueeze(1) for key in keys ]
+    keyGroup = torch.cat(keys, dim = 1)
+    mid = int(args.step_size / 2)
+    query = torch.cat([ keys[mid] for i in range(args.step_size) ], dim = 1)
+    value = torch.cat([ output[mid].unsqueeze(1) for i in range(args.step_size) ], dim = 1)
+#    key0, key1, key2 = torch.stack(key0, 0), torch.stack(key1, 0), torch.stack(key2, 0)
+#    keyGroup = torch.cat((key0.unsqueeze(1), key1.unsqueeze(1), key2.unsqueeze(1)), dim = 1)
+#    query = torch.cat((key1.unsqueeze(1), key1.unsqueeze(1), key1.unsqueeze(1)), dim = 1)
+#    value = torch.cat((lh1.unsqueeze(1), lh1.unsqueeze(1), lh1.unsqueeze(1)), dim = 1)
 
-    q, v, k = torch.stack(q, 0), torch.stack(v, 0), torch.stack(k, 0)
+    batchSize = query.shape[0]
+    channelSize = query.shape[1]
+    w, h = query.shape[2], query.shape[3]
+    proj_query = query.view(batchSize, channelSize, w*h).permute(0,2,1).cpu() # batch, 156 * 156, 3
 
-    # print(q.shape, v.shape, k.shape)  # （batch, size, size)
-    batchSize = q.shape[0]
-    w, h = q.shape[1], q.shape[2]
-    proj_query = q.view(batchSize, -1, w*h).permute(0,2,1).cpu()
-    proj_key = k.view(batchSize, -1, w*h).cpu()
+    # oneImageAttention(query, key0, key1, key2, value)
 
-    energy = torch.bmm(proj_query, proj_key)
+    proj_key = keyGroup.view(batchSize, channelSize, w*h).cpu() # batch, 3, 156 * 156
+    
+    energy = torch.bmm(proj_query, proj_key) # batch, 156*156, 156*156
+    # softmax1D = torch.nn.Softmax(dim=-1)
+    # similarity = softmax1D(energy)
+    
+    proj_value = value.view(batchSize, channelSize, w*h).cpu()
+    score = torch.bmm(proj_value, energy)#.permute(0, 2, 1))
+    attention_down = score.view(batchSize,channelSize, w, h).to(args.device)
+    # print(attention_down.shape) #10, 3, 156, 156
+    
+    attention_b = attention_down.view(batchSize*channelSize, -1)
+    attention_norm = (attention_b - attention_b.min(1, keepdim=True)[0]) / (attention_b.max(1, keepdim=True)[0] - attention_b.min(1, keepdim=True)[0] + 0.00000000001)
+
+    attention_norm = attention_norm.view(batchSize, channelSize, w, h)
+    if valid: 
+        for c in range(0, channelSize):
+            save_attention_score(attention_norm[:,c], batch, epoch, args, c)
+    # attention = (out[0] + out[1] + out[2]) / 3
+    attention = torch.mean(attention_norm, dim=1) # batch, 156, 156
+
+    if args.topo_iteration and not valid:
+        attention, iter_attention = temporalAttention(attention, iter_attention, batch, epoch)
+
+    if valid: 
+        save_attention(attention, batch, epoch, args)
+
+    return attention, True, iter_attention
+
+
+def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid=False):
+    # [batch, 2 * step_size, size, size], [batch, step_size, size, size]
+    torch.autograd.set_detect_anomaly(True)
+    start = time.time()
+    lh_down = []
+    for step in range(args.step_size):
+	    lh_down.append(output[:, step * 2 : (step + 1) * 2][:, 1])
+#    lh0 = output[:, :2][:, 1]
+#    lh1 = output[:, 2:4][:, 1]  # [batch, size, size]
+#    lh2 = output[:, -2:][:, 1]
+    mid = int(args.step_size / 2)
+    value = lh_down[mid] #lh1
+
+#    lh_down = [lh0, lh1, lh2]
+
+    attention, hasCriticalPoints, iter_attention = get_attention_map(lh_down, labels, iter_attention, args, batch, epoch, valid)
+    
+    if hasCriticalPoints:
+        result = attention + (1 - value)
+    else: result = 1 - value
+
+    saveResult = result.clone()
+    saveResult[saveResult > 1] = 1
+    saveResult[saveResult < 0] = 0
+    
+    if valid: 
+        save_likelihood([value, (1-saveResult)], batch, epoch, args)
+
+    print('topo-attention running time: ', time.time() - start)
+
+    final = torch.stack((result, (1-result)), dim=1)
+    softmax2D=nn.Softmax2d()
+    final = softmax2D(final)
+    #img = final[-1,-1].clone()
+    #saveForTest(img, 0, 'resultForTopo')
+    label = labels[:,mid].long().to(args.device)#labels_down[:,1].long().to(args.device)
+
+    return final, label, iter_attention
+
+
+
+
+if __name__ == "__main__":
+    imgPath = Image.open('paper/15-2lh.png')
+    # new_img = imgPath.resize((312,312))
+    # new_img.save("paper/car_resized.jpg", "JPEG", optimize=True)
+    
+    # print('done')
+
+
+    for i, img_as_img in enumerate(ImageSequence.Iterator(imgPath)):
+        img_as_np = np.asarray(img_as_img)
+    img_as_tensor = torch.from_numpy(img_as_np).float()
+    img_as_tensor = (img_as_tensor - torch.min(img_as_tensor))/ (torch.max(img_as_tensor) - torch.min(img_as_tensor))
+    img_as_tensor = downsampling(img_as_tensor.unsqueeze(0), 1).squeeze(0)
+    print(img_as_tensor.shape)
+   
+    
+    # img_as_tensor = img_as_tensor[:,:,0]
+    img_as_tensor = (img_as_tensor - torch.min(img_as_tensor))/ (torch.max(img_as_tensor) - torch.min(img_as_tensor))
+    pd_lh, bcp_lh, dcp_lh, lh_pers, lh_pers_valid = getPers(img_as_tensor)
+
+    criticPointMap = torch.zeros(img_as_tensor.shape)
+    print(criticPointMap.shape)
+    for coor in bcp_lh:
+        if any(coor < 0) or any(coor >= criticPointMap.shape[0]) or any(coor >= criticPointMap.shape[1]): continue
+        criticPointMap[int(coor[0])][int(coor[1])] = 1
+
+    filter = get_gaussian_kernel()
+    img = filter(criticPointMap.unsqueeze(0).unsqueeze(0))
+    img = img.squeeze(0).squeeze(0)
+    img = (img - torch.min(img))/ (torch.max(img) - torch.min(img))
+    saveForTest(img, 0, type='gau')
+
+    w, h = img.shape[0], img.shape[1]
+    proj_query = img.view(-1, w*h).permute(1,0).cpu()
+    proj_key = img.view(-1, w*h).cpu()
+
+    energy = torch.mm(proj_query, proj_key)
+    print('here', energy.shape)
     softmax1D = torch.nn.Softmax(dim=-1)
     attention = softmax1D(energy)
+    print(attention.shape)
+    # saveForTest(energy, 0, type='energy')
+    # saveForTest(attention, 0, type='attention')
 
-    proj_value = v.view(batchSize, -1, w*h).cpu()
-    out = torch.bmm(proj_value, attention.permute(0, 2, 1))
-    out = out.view(batchSize, w, h)
-    """Normalize Attention Score"""
-    for i in range(len(out)):
-        out[i] = (out[i] - torch.min(out[i]))/ (torch.max(out[i]) - torch.min(out[i]))
-    if valid: save_attention_score(out, batch, epoch, args)
+    proj_value = img_as_tensor.view(-1, w*h).cpu()
+    out = torch.mm(proj_value, attention.permute(1, 0))
+    out = out.view(w, h)
+    out = (out - torch.min(out))/ (torch.max(out) - torch.min(out))
+    # saveForTest(out, 0, type='out')
+    result = 1 - out + 1- img_as_tensor
+    result[result > 1] = 1
+    result[result < 0] = 0
+    saveForTest(1-result, 0, type='result')
+    # result = 1- (img + 1 - img_as_tensor)
 
-    att = torch.mul(out.to(args.device), v_lh)
-    attention = upsampling(att.unsqueeze(1)).squeeze(1)
-    if valid: save_attention(attention, batch, epoch, args)
-
-    output = 0.5*attention + V_lh
-    # for i in range(len(output)):
-    #     output[i] = (output[i] - torch.min(output[i])) / (torch.max(output[i]) - torch.min(output[i]))
-    output[output > 1] = 1
-    output[output < 0] = 0
-    if valid: save_likelihood([V_lh, output], batch, epoch, args)
-    print('running time: ', time.time() - start)
-    output = torch.stack((output, (1-output)), dim=1)
-
-    return output
-
-
+    # saveForTest(img_as_tensor, 0, type='origin')
+    # saveForTest(result, 0, type='result')
+    

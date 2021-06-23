@@ -33,7 +33,7 @@ def train():
                         help="Path or url of the dataset")
     parser.add_argument("--dataset_cache", type=str,
                         default='dataset_cache/dataset_cache_{0}'.format(database), help="Path or url of the preprocessed dataset cache")
-    parser.add_argument("--save_folder", type=str, default="results_clstm/{0}_1step".format(database),
+    parser.add_argument("--save_folder", type=str, default="results_clstm/{0}_5step".format(database),
                         help="Path or url of the dataset")
     # TODO: batch size enlarge, need fit the total number of input, dividable
     parser.add_argument("--train_batch_size", type=int,
@@ -41,7 +41,7 @@ def train():
     parser.add_argument("--valid_batch_size", type=int,
                         default=1, help="Batch size for validation")
     parser.add_argument("--valid_round", type=int,
-                        default=3, help="validation part: 1, 2, 3")
+                        default=2, help="validation part: 1, 2, 3")
     parser.add_argument("--lr", type=float,
                         default=0.001, help="Learning rate")
     parser.add_argument("--lr_topo", type=float,
@@ -54,7 +54,7 @@ def train():
     else "cpu", help="Device (cuda or cpu)")
     parser.add_argument("--topo_size", type=int, default=39, help="Crop size for topo input")
 
-    parser.add_argument("--step_size", type=int, default=1, help="sequence length for LSTM")
+    parser.add_argument("--step_size", type=int, default=5, help="sequence length for LSTM")
 
     args = parser.parse_args()
 

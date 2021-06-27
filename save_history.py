@@ -158,9 +158,6 @@ def save_groundTrue(images, labels, args, batch, epoch, name):
 
 
 def save_attention_features(cp_group, batch, epoch, args):
-#    img_cp0 = Image.fromarray((cp0.cpu().numpy() * 255).astype(np.uint8))
-#    img_cp1 = Image.fromarray((cp1.cpu().numpy() * 255).astype(np.uint8))
-#    img_cp2 = Image.fromarray((cp2.cpu().numpy() * 255).astype(np.uint8))
     iter = '_iter' if args.topo_iteration else ''
     path = args.save_folder + '/valid_' + str(args.valid_round) + '/saved_images_topo' + iter + '/epoch_' + str(epoch) + '/' + str(batch) + '/'
     if not os.path.exists(path):
@@ -169,13 +166,6 @@ def save_attention_features(cp_group, batch, epoch, args):
         img_cp = Image.fromarray((cp.cpu().numpy() * 255).astype(np.uint8))
         export_name_cp = 'cp{}.png'.format(i)
         img_cp.save(path + export_name_cp)
-#    export_name_cp0 = 'cp0.png'
-#    export_name_cp1 = 'cp1.png'
-#    export_name_cp2 = 'cp2.png'
-
-#    img_cp0.save(path + export_name_cp0)
-#    img_cp1.save(path + export_name_cp1)
-#    img_cp2.save(path + export_name_cp2)
 
 def save_attention_score(out, batch, epoch, args, i):
     img = Image.fromarray((out.squeeze(0).detach().cpu().numpy() * 255).astype(np.uint8))

@@ -270,11 +270,7 @@ def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid
 
 
 if __name__ == "__main__":
-    imgPath = Image.open('paper/15-2lh.png')
-    # new_img = imgPath.resize((312,312))
-    # new_img.save("paper/car_resized.jpg", "JPEG", optimize=True)
-
-    # print('done')
+    imgPath = Image.open('results_clstm/CREMI_5step/valid_1/saved_images/epoch_350/0-0lh.png')
 
     for i, img_as_img in enumerate(ImageSequence.Iterator(imgPath)):
         img_as_np = np.asarray(img_as_img)
@@ -282,7 +278,7 @@ if __name__ == "__main__":
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
     img_as_tensor = downsampling(img_as_tensor.unsqueeze(0), 1).squeeze(0)
     print(img_as_tensor.shape)
-
+    ss
     # img_as_tensor = img_as_tensor[:,:,0]
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
     pd_lh, bcp_lh, dcp_lh, lh_pers, lh_pers_valid = getPers(img_as_tensor)

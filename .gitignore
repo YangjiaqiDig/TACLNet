@@ -2,6 +2,8 @@ train_*/
 .env/
 .DS_Store
 .venv
+.idea/
+._*
 *.out
 *.txt
 dataset_cache*

@@ -1,11 +1,3 @@
-from argparse import ArgumentParser
-
-from lstm import *
-from model import UNET
-from save_history import *
-from util import *
-import numpy as np
-import torch.nn as nn
 from modules import *
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
@@ -15,7 +7,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 def train():
-    database = "CREMI" #Hepatic need _subset in cache and saveFolder
+    database = "CREMI"
     parser = ArgumentParser()
     parser.add_argument("--database", type=str, default="{0}".format(database),
                         help="Hepatic, CREMI, ISBI12, ISBI13")
@@ -37,11 +29,11 @@ def train():
                         help="Path or url of the dataset")
     # TODO: batch size enlarge, need fit the total number of input, dividable
     parser.add_argument("--train_batch_size", type=int,
-                        default=10, help="Batch size for training")
+                        default=1, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int,
-                        default=1, help="Batch size for validation")
+                        default=10, help="Batch size for validation")
     parser.add_argument("--valid_round", type=int,
-                        default=2, help="validation part: 1, 2, 3")
+                        default=1, help="validation part: 1, 2, 3")
     parser.add_argument("--lr", type=float,
                         default=0.001, help="Learning rate")
     parser.add_argument("--lr_topo", type=float,

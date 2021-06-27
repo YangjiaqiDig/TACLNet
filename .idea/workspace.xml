@@ -2,28 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="4d136bd5-5dea-44cd-9309-9b58b7061c81" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/1valout.out" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/2lstm.out" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/att.out" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/.___init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/._functional.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/._module.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/._utils.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/__init__.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/functional.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/module.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/convolutional_rnn/utils.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/dataset.py" beforeDir="false" afterPath="$PROJECT_DIR$/dataset.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/log.txt" beforeDir="false" afterPath="$PROJECT_DIR$/log.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/lstm.py" beforeDir="false" afterPath="$PROJECT_DIR$/lstm.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/modules.py" beforeDir="false" afterPath="$PROJECT_DIR$/modules.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/save_history.py" beforeDir="false" afterPath="$PROJECT_DIR$/save_history.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/topo.py" beforeDir="false" afterPath="$PROJECT_DIR$/topo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/topoLoss.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/util.py" beforeDir="false" afterPath="$PROJECT_DIR$/util.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,34 +15,10 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectId" id="1uBdV85BKS7NihditcAWth7EHTN" />
-  <component name="ProjectView">
-    <navigator proportions="" version="1">
-      <foldersAlwaysOnTop value="true" />
-    </navigator>
-    <panes>
-      <pane id="Scope" />
-      <pane id="ProjectPane">
-        <subPane>
-          <expand>
-            <path>
-              <item name="CRNN_Topo" type="b2602c69:ProjectViewProjectNode" />
-              <item name="CRNN_Topo" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="CRNN_Topo" type="b2602c69:ProjectViewProjectNode" />
-              <item name="CRNN_Topo" type="462c0819:PsiDirectoryNode" />
-              <item name="dataset_cache" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="CRNN_Topo" type="b2602c69:ProjectViewProjectNode" />
-              <item name="CRNN_Topo" type="462c0819:PsiDirectoryNode" />
-              <item name="results_clstm" type="462c0819:PsiDirectoryNode" />
-            </path>
-          </expand>
-          <select />
-        </subPane>
-      </pane>
-    </panes>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showExcludedFiles" value="true" />
+    <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
@@ -94,6 +51,7 @@
       <option name="presentableId" value="Default" />
       <updated>1597716677837</updated>
       <workItem from="1624142941009" duration="5845000" />
+      <workItem from="1624759196717" duration="1694000" />
     </task>
     <servers />
   </component>
@@ -101,6 +59,14 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="2184" y="276" width="1071" height="696" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1624759225497">
+      <screen x="1440" y="-94" width="2560" height="1417" />
+    </state>
+    <state x="2184" y="276" width="1071" height="696" key="#com.intellij.execution.impl.EditConfigurationsDialog/45.23.1395.877/1440.-94.2560.1417@1440.-94.2560.1417" timestamp="1624759225497" />
+    <state x="2229" y="253" key="SettingsEditor" timestamp="1624759340582">
+      <screen x="1440" y="-94" width="2560" height="1417" />
+    </state>
+    <state x="2229" y="253" key="SettingsEditor/45.23.1395.877/1440.-94.2560.1417@1440.-94.2560.1417" timestamp="1624759340582" />
     <state x="1791" y="371" width="667" height="486" key="find.popup" timestamp="1624145995838">
       <screen x="1440" y="-94" width="2560" height="1417" />
     </state>

@@ -277,6 +277,14 @@ if __name__ == "__main__":
     img_as_tensor = torch.from_numpy(img_as_np).float()
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
     print(img_as_tensor.shape)
+    predicts = torch.stack([1- img_as_tensor, img_as_tensor], dim =0)
+    print(predicts.shape)
+    # pred_class = torch.argmax(predicts[:, step * 2: (step + 1) * 2], dim=1)
+    # pred_class_all.append(pred_class)
+    # acc = accuracy_check(labels[:, step].cpu(), pred_class.cpu())
+    # total_acc += acc
+    # likelihoodMap = predicts[:, step * 2: (step + 1) * 2][:, 1, :, :]
+    # likelihoodMaps.append(likelihoodMap)
     ss
     # img_as_tensor = img_as_tensor[:,:,0]
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))

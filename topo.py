@@ -280,7 +280,8 @@ if __name__ == "__main__":
     predicts = torch.stack([1- img_as_tensor, img_as_tensor], dim =0)
     print(predicts.shape)
     pred_class = torch.argmax(predicts, dim=0)
-    print(pred_class)
+    print(pred_class.shape)
+    saveForTest(pred_class, 0, type='out')
     # acc = accuracy_check(labels[:, step].cpu(), pred_class.cpu())
     # total_acc += acc
     # likelihoodMap = predicts[:, step * 2: (step + 1) * 2][:, 1, :, :]

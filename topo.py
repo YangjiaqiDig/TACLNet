@@ -276,7 +276,6 @@ if __name__ == "__main__":
         img_as_np = np.asarray(img_as_img)
     img_as_tensor = torch.from_numpy(img_as_np).float()
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
-    img_as_tensor = downsampling(img_as_tensor.unsqueeze(0), 1).squeeze(0)
     print(img_as_tensor.shape)
     ss
     # img_as_tensor = img_as_tensor[:,:,0]

@@ -258,8 +258,8 @@ def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid
         save_likelihood([value, (1 - saveResult)], batch, epoch, args)
 
     print('topo-attention running time: ', time.time() - start)
-
-    final = torch.stack((result, (1 - result)), dim=1)
+    result_norm = (result - torch.min(result)) / (torch.max(result) - torch.min(result))
+    final = torch.stack((result_norm, (1 - result_norm)), dim=1)
     softmax2D = nn.Softmax2d()
     final = softmax2D(final)
     # img = final[-1,-1].clone()
@@ -276,18 +276,6 @@ if __name__ == "__main__":
         img_as_np = np.asarray(img_as_img)
     img_as_tensor = torch.from_numpy(img_as_np).float()
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
-    print(img_as_tensor.shape)
-    predicts = torch.stack([1-img_as_tensor, img_as_tensor], dim =0)
-    predicts = (predicts - torch.min(predicts)) / (torch.max(predicts) - torch.min(predicts))
-    print(predicts.shape)
-    pred_class = torch.argmax(predicts, dim=0)
-    print(pred_class.shape)
-    saveForTest(pred_class, 0, type='out')
-    # acc = accuracy_check(labels[:, step].cpu(), pred_class.cpu())
-    # total_acc += acc
-    # likelihoodMap = predicts[:, step * 2: (step + 1) * 2][:, 1, :, :]
-    # likelihoodMaps.append(likelihoodMap)
-    ss
     # img_as_tensor = img_as_tensor[:,:,0]
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
     pd_lh, bcp_lh, dcp_lh, lh_pers, lh_pers_valid = getPers(img_as_tensor)

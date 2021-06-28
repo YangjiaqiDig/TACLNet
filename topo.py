@@ -258,8 +258,8 @@ def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid
         save_likelihood([value, (1 - saveResult)], batch, epoch, args)
 
     print('topo-attention running time: ', time.time() - start)
-    result_norm = (result - torch.min(result)) / (torch.max(result) - torch.min(result))
-    final = torch.stack((result_norm, (1 - result_norm)), dim=1)
+    orignLh = output[:, mid * 2]
+    final = torch.stack((orignLh, (1 - result)), dim=1)
     softmax2D = nn.Softmax2d()
     final = softmax2D(final)
     # img = final[-1,-1].clone()
@@ -270,10 +270,9 @@ def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid
 
 
 if __name__ == "__main__":
-    imgPath = Image.open('results_clstm/CREMI_5step/valid_1/saved_images/epoch_350/0-0lh.png')
+    img0 = Image.open('results_clstm/CREMI_5step/valid_1/saved_images/epoch_350/0-0lh.png')
 
-    for i, img_as_img in enumerate(ImageSequence.Iterator(imgPath)):
-        img_as_np = np.asarray(img_as_img)
+    img_as_np = np.array(img0, dtype='uint8') / 255
     img_as_tensor = torch.from_numpy(img_as_np).float()
     img_as_tensor = (img_as_tensor - torch.min(img_as_tensor)) / (torch.max(img_as_tensor) - torch.min(img_as_tensor))
     # img_as_tensor = img_as_tensor[:,:,0]

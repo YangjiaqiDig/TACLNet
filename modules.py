@@ -9,27 +9,6 @@ import time
 from topo import *
 
 
-class FocalLoss(nn.Module):
-    def __init__(self, gamma):
-        super().__init__()
-        self.gamma = gamma
-
-    def forward(self, input, target):
-        pred = input[:, 1]
-        if not (target.size() == pred.size()):
-            raise ValueError("Target size ({}) must be the same as pred size ({})"
-                             .format(target.size(), pred.size()))
-
-        max_val = (-pred).clamp(min=0)
-        loss = pred - pred * target + max_val + \
-               ((-max_val).exp() + (-pred - max_val).exp()).log()
-
-        invprobs = F.logsigmoid(-pred * (target * 2.0 - 1.0))
-        loss = (invprobs * self.gamma).exp() * loss
-
-        return loss.mean()
-
-
 def dice_score(input, target, args):
     mid = int(args.step_size / 2)
     predict, label = input[:, mid * 2: (mid + 1) * 2], target[:, mid].to(args.device)
@@ -56,22 +35,6 @@ def dice_loss(input, target):
     # return (2. * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth)
     return 1 - ((2. * intersection + smooth) /
                 (iflat.sum() + tflat.sum() + smooth))
-
-
-class MixDiceFocalLoss(nn.Module):
-    def __init__(self, alpha, gamma):
-        super().__init__()
-        self.alpha = alpha
-        self.focal = FocalLoss(gamma)
-
-    def forward(self, input, target):
-        loss_focal = self.focal(input, target)
-        loss_dice = dice_loss(input, target)  # torch.log(dice_loss(input, target))
-
-        loss = self.alpha * loss_focal + loss_dice
-        # loss = self.alpha*loss_focal - loss_dice
-        return loss.mean()
-
 
 class MixDiceCrossEntropyLoss(nn.Module):
     def __init__(self, alpha, beta):
@@ -126,11 +89,10 @@ def accForSeqSlices(org, predicts, labels, args, batch, i, name):
 
 def train_LSTM_TopoAttention(train_loader, val_loader, args):
     start = time.time()
-    logging.info("Start Training CLSTM")
+    logging.info("Start Training CLSTM on {} Valid Fold".format(args.valid_round))
     in_channels = 1
     model = ConvLSTM(input_dim=in_channels, hidden_dim=[16, 8, 2 * args.step_size], kernel_size=(3, 3), num_layers=3,
                      batch_first=True, bias=True, return_all_layers=False).to(args.device)
-    print(2 * args.step_size)
     if args.device == "cuda":
         print("GPU: ", torch.cuda.device_count())
         model = torch.nn.DataParallel(model, device_ids=list(

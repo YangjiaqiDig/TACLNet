@@ -15,7 +15,7 @@ np.set_printoptions(edgeitems=60)
 
 n_fix = 0
 n_remove = 0
-pers_thd_lh = 0.01
+pers_thd_lh = 0.1#0.01
 pers_thd_gt = 0.03
 
 
@@ -258,8 +258,8 @@ def topo_attention(output, labels, iter_attention, args, batch=0, epoch=0, valid
         save_likelihood([value, (1 - saveResult)], batch, epoch, args)
 
     print('topo-attention running time: ', time.time() - start)
-    orignLh = output[:, mid * 2]
-    final = torch.stack((orignLh, (1 - result)), dim=1)
+    originLh = output[:, mid * 2]
+    final = torch.stack((originLh, (1 - result)), dim=1)
     softmax2D = nn.Softmax2d()
     final = softmax2D(final)
     # img = final[-1,-1].clone()

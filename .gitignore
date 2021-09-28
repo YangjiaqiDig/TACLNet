@@ -2,7 +2,7 @@ train_*/
 .env/
 .DS_Store
 .venv
-.idea/
+.idea
 ._*
 *.out
 *.txt

@@ -40,67 +40,45 @@ class UNET(nn.Module):
         self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
-        # print('input', x.shape)
         # Down 1
         conv1 = self.conv1_block(x)
-        # print('after conv1', conv1.shape)
         x = self.maxpool(conv1)
-        # print('before conv2', x.shape)
         # Down 2
         conv2 = self.conv2_block(x)
-        # print('after conv2', conv2.shape)
         x = self.maxpool(conv2)
-        # print('before conv3', x.shape)
 
         # Down 3
         conv3 = self.conv3_block(x)
-        # print('after conv3', conv3.shape)
         x = self.maxpool(conv3)
-        # print('before conv4', x.shape)
 
         # # # Down 4
         conv4 = self.conv4_block(x)
-        # print('after conv4', conv4.shape)
         x = self.maxpool(conv4)
 
         # # Midpoint
-        # print('before conv5', x.shape)
         x = self.conv5_block(x)
-        # print('after conv5', x.shape)
 
 
         # Up 1
         x = self.up_1(x)
-        # print('up_1', x.shape)
         x = torch.cat([x, conv4], dim=1)
-        # print('after cat_4', x.shape)
 
         x = self.conv_up_1(x)
-        # print('after conv_4', x.shape)
 
         # # Up 2
         x = self.up_2(x)
-        # print('up_2', x.shape)
         x = torch.cat([x, conv3], dim=1)
-        # print('after cat_3', x.shape)
         x = self.conv_up_2(x)
-        # print('after conv_3', x.shape)
 
         # Up 3
         x = self.up_3(x)
-        # print('up_3', x.shape)
         x = torch.cat([x, conv2], dim=1)
-        # print('after cat_2', x.shape)
         x = self.conv_up_3(x)
-        # print('after conv_2', x.shape)
 
         # Up 4
         x = self.up_4(x)
-        # print('up_4', x.shape)
         x = torch.cat([x, conv1], dim=1)
-        # print('after cat_1', x.shape)
         x = self.conv_up_4(x)
-        # print('after conv_1', x.shape)
 
         # Final output
         x = self.conv_final(x)
